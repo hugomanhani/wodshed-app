@@ -1,0 +1,416 @@
+// WODshed generator + adaptive progression engine.
+
+const MATURITY_SESSIONS = 6;
+const LAYOFF_DAYS = 14;
+const DEFAULT_START_WEIGHT = {
+  back_squat: 135, front_squat: 95, deadlift: 155, bench_press: 95,
+  push_press: 65, shoulder_press: 65, power_clean: 95, power_snatch: 65,
+};
+const LIFT_INCREMENT = {
+  back_squat: 10, front_squat: 10, deadlift: 10, bench_press: 5,
+  push_press: 5, shoulder_press: 5, power_clean: 5, power_snatch: 5,
+};
+
+const BODYWEIGHT_FALLBACK = {
+  strength: { id: 'fb_strength', shape: 'C', rest: 90, rounds: 4, moves: ['air_squat', 'push_up', 'pistol'], reps: 12 },
+  weightlifting: { id: 'fb_weightlifting', shape: 'B', intervalSec: 60, rounds: 8, movesOdd: ['burpee'], movesEven: ['air_squat'], reps: 10 },
+  gymnastics: { id: 'fb_gymnastics', shape: 'B', intervalSec: 60, rounds: 8, movesOdd: ['push_up'], movesEven: ['air_squat'], reps: 12 },
+  accessory: { id: 'fb_accessory', shape: 'C', rest: 60, rounds: 4, moves: ['push_up', 'walking_lunge', 'plank_hold'], reps: 12 },
+  conditioning: { id: 'fb_conditioning', shape: 'B', intervalSec: 60, rounds: 8, movesOdd: ['burpee'], movesEven: ['mtn_climber'], reps: 15 },
+};
+
+const WOD_MOVEMENT_BASE = {
+  run: { amount: 200, unit: 'm' }, row_cal: { amount: 15, unit: 'cal' }, row_m: { amount: 250, unit: 'm' },
+  bike_cal: { amount: 15, unit: 'cal' }, double_under: { amount: 40, unit: 'reps' }, box_jump: { amount: 12, unit: 'reps' },
+  wall_ball: { amount: 12, unit: 'reps' }, kb_swing: { amount: 15, unit: 'reps' }, burpee: { amount: 10, unit: 'reps' },
+  ttb: { amount: 12, unit: 'reps' }, kipping_pullup: { amount: 8, unit: 'reps' }, thruster_bb: { amount: 10, unit: 'reps' },
+  thruster_db: { amount: 10, unit: 'reps' }, power_clean: { amount: 6, unit: 'reps' }, push_jerk: { amount: 8, unit: 'reps' },
+  sdhp: { amount: 12, unit: 'reps' }, db_snatch: { amount: 10, unit: 'reps' }, sled_push: { amount: 20, unit: 'm' },
+  push_up: { amount: 12, unit: 'reps' },
+};
+
+const LADDER_PATTERNS = [
+  { id: 'ladder_12', steps: [12, 10, 8, 6] },
+  { id: 'ladder_21', steps: [21, 15, 9] },
+  { id: 'ladder_9', steps: [9, 7, 5, 3] },
+  { id: 'ladder_15', steps: [15, 12, 9, 6, 3] },
+];
+
+function hasEquip(userEquip, needed) {
+  return needed.every(e => userEquip.includes(e));
+}
+
+function equipmentEligible(exId, userEquip) {
+  const ex = exerciseById(exId);
+  if (!ex) return false;
+  return hasEquip(userEquip, ex.equip);
+}
+
+function lruPick(ids, lruMap, bonusMap) {
+  if (ids.length === 0) return null;
+  let best = null, bestKey = null;
+  for (const id of ids) {
+    let key = lruMap[id] || '0000-00-00';
+    if (bonusMap && bonusMap[id]) key = shiftDateStr(key, -bonusMap[id]);
+    if (bestKey === null || key < bestKey || (key === bestKey && Math.random() < 0.5)) {
+      best = id; bestKey = key;
+    }
+  }
+  return best;
+}
+
+function shiftDateStr(iso, days) {
+  const d = new Date(iso + 'T00:00:00');
+  if (isNaN(d.getTime())) return iso;
+  d.setDate(d.getDate() + days);
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+
+function markUsed(state, id) {
+  state.contentLRU[id] = todayISO();
+}
+
+function pickFocus(state) {
+  let best = FOCUSES[0], bestKey = state.focusHistory[FOCUSES[0]] || '0000-00-00';
+  for (const f of FOCUSES) {
+    const key = state.focusHistory[f] || '0000-00-00';
+    if (key < bestKey) { best = f; bestKey = key; }
+  }
+  return best;
+}
+
+function templateEligible(tpl, userEquip) {
+  const ids = [];
+  if (tpl.lifts) ids.push(...tpl.lifts);
+  if (tpl.moves) ids.push(...tpl.moves);
+  if (tpl.movesOdd) ids.push(...tpl.movesOdd);
+  if (tpl.movesEven) ids.push(...tpl.movesEven);
+  return ids.some(id => equipmentEligible(id, userEquip));
+}
+
+function estimateOneRM(weight, reps) {
+  return Math.round(weight * (1 + reps / 30));
+}
+
+function liftMaturity(state, liftId) {
+  const l = state.lifts[liftId];
+  return l ? l.history.length : 0;
+}
+
+function daysSinceLastSession(state, liftId) {
+  const l = state.lifts[liftId];
+  if (!l || l.history.length === 0) return Infinity;
+  const last = l.history[l.history.length - 1].date;
+  return daysBetween(last, todayISO());
+}
+
+function suggestNextLoad(state, liftId) {
+  const l = state.lifts[liftId];
+  const inc = LIFT_INCREMENT[liftId] || 5;
+  if (!l || l.history.length === 0) {
+    return DEFAULT_START_WEIGHT[liftId] || 45;
+  }
+  const hist = l.history;
+  const lastEntry = hist[hist.length - 1];
+  const mature = hist.length >= MATURITY_SESSIONS;
+  let suggestion;
+
+  if (!mature) {
+    const half = Math.max(2.5, Math.round((inc / 2) / 2.5) * 2.5);
+    if (hist.length >= 2 && hist[hist.length - 1].rating === 'hard' && hist[hist.length - 2].rating === 'hard') {
+      suggestion = Math.round((lastEntry.weight * 0.9) / 2.5) * 2.5;
+    } else if (lastEntry.rating === 'easy') {
+      suggestion = lastEntry.weight + inc;
+    } else if (lastEntry.rating === 'hard') {
+      suggestion = lastEntry.weight;
+    } else {
+      suggestion = lastEntry.weight + half;
+    }
+  } else {
+    const best = hist.slice(-6).reduce((acc, h) => {
+      const e1 = estimateOneRM(h.weight, h.reps || 5);
+      return e1 > acc ? e1 : acc;
+    }, 0);
+    let pct = l.targetPct || 0.70;
+    if (hist.length >= 2 && hist[hist.length - 1].rating === 'hard' && hist[hist.length - 2].rating === 'hard') {
+      pct = Math.max(0.5, pct - 0.10);
+    } else if (lastEntry.rating === 'easy') {
+      pct = Math.min(0.90, pct + 0.025);
+    } else if (lastEntry.rating === 'hard') {
+      pct = Math.max(0.5, pct - 0.025);
+    } else {
+      pct = Math.min(0.90, pct + 0.01);
+    }
+    l.targetPct = pct;
+    suggestion = Math.round((best * pct) / 2.5) * 2.5;
+  }
+
+  const layoff = daysSinceLastSession(state, liftId);
+  if (layoff >= LAYOFF_DAYS) suggestion = Math.round((suggestion * 0.85) / 2.5) * 2.5;
+
+  return Math.max(inc, suggestion);
+}
+
+function recordLiftResult(state, liftId, weight, reps, rating) {
+  if (!state.lifts[liftId]) state.lifts[liftId] = { history: [] };
+  state.lifts[liftId].history.push({ date: todayISO(), weight, reps, rating });
+  if (state.lifts[liftId].history.length > 40) state.lifts[liftId].history.shift();
+}
+
+function adjustVolume(state, focus, rating, isBenchmark) {
+  if (isBenchmark) return;
+  const cur = state.volumeMultiplier[focus] || 1.0;
+  let next = cur;
+  if (rating === 'easy') next = Math.min(1.4, cur + 0.05);
+  else if (rating === 'hard') next = Math.max(0.7, cur - 0.05);
+  state.volumeMultiplier[focus] = Math.round(next * 100) / 100;
+}
+
+function scaledAmount(base, unit, mult) {
+  const step = unit === 'reps' ? 1 : 5;
+  const scaled = base * mult;
+  return Math.max(step, Math.round(scaled / step) * step);
+}
+
+function formatMovementLine(exId, amount, unit) {
+  const ex = exerciseById(exId);
+  const name = ex ? ex.name : exId;
+  if (unit === 'm') return `${amount}m ${name}`;
+  if (unit === 'cal') return `${amount} Cal ${name}`;
+  return `${amount} ${name}`;
+}
+
+function pickWodMovements(state, focus, userEquip, count) {
+  const pool = WOD_MOVEMENT_POOL_BY_FOCUS[focus].filter(id => equipmentEligible(id, userEquip));
+  const chosen = [];
+  const remaining = pool.slice();
+  for (let i = 0; i < count && remaining.length > 0; i++) {
+    const pick = lruPick(remaining, state.contentLRU);
+    chosen.push(pick);
+    remaining.splice(remaining.indexOf(pick), 1);
+  }
+  return chosen;
+}
+
+function generateWarmup(state, userEquip) {
+  const eligible = WARMUP_TEMPLATES.filter(t => t.moves.every(m => equipmentEligible(m, userEquip) || exerciseById(m).equip.length === 0));
+  const pool = eligible.length ? eligible : WARMUP_TEMPLATES;
+  const chosenId = lruPick(pool.map(t => t.id), state.contentLRU);
+  const chosen = pool.find(t => t.id === chosenId) || pool[0];
+  return { templateId: chosen.id, moves: chosen.moves, rounds: 2 };
+}
+
+function generateSkill(state, focus, userEquip) {
+  const templates = SKILL_TEMPLATES[focus] || [];
+  const eligibleTpls = templates.filter(t => templateEligible(t, userEquip));
+  let tpl;
+  if (eligibleTpls.length === 0) {
+    const fb = BODYWEIGHT_FALLBACK[focus];
+    tpl = fb || templates[0];
+  } else {
+    const id = lruPick(eligibleTpls.map(t => t.id), state.contentLRU);
+    tpl = eligibleTpls.find(t => t.id === id);
+  }
+
+  if (tpl.shape === 'A') {
+    const availableLifts = tpl.lifts.filter(l => equipmentEligible(l, userEquip));
+    const liftId = availableLifts.length ? lruPick(availableLifts, state.contentLRU) : tpl.lifts[0];
+    const weight = suggestNextLoad(state, liftId);
+    return {
+      shape: 'A', templateId: tpl.id, liftId, scheme: tpl.scheme, rest: tpl.rest,
+      weight, liftName: exerciseById(liftId) ? exerciseById(liftId).name : liftId,
+    };
+  }
+  if (tpl.shape === 'B') {
+    const odd = tpl.movesOdd.find(m => equipmentEligible(m, userEquip)) || tpl.movesOdd[0];
+    const even = tpl.movesEven.find(m => equipmentEligible(m, userEquip)) || tpl.movesEven[0];
+    return {
+      shape: 'B', templateId: tpl.id, intervalSec: tpl.intervalSec, rounds: tpl.rounds,
+      odd, even, reps: tpl.reps, secHold: tpl.secHold,
+      oddName: exerciseById(odd) ? exerciseById(odd).name : odd,
+      evenName: exerciseById(even) ? exerciseById(even).name : even,
+    };
+  }
+  const moves = tpl.moves.filter(m => equipmentEligible(m, userEquip));
+  const finalMoves = moves.length ? moves : tpl.moves;
+  return {
+    shape: 'C', templateId: tpl.id, moves: finalMoves, reps: tpl.reps, rest: tpl.rest, rounds: tpl.rounds || 4,
+    moveNames: finalMoves.map(m => exerciseById(m) ? exerciseById(m).name : m),
+  };
+}
+
+function generateCore(state, userEquip) {
+  const eligible = CORE_TEMPLATES.filter(t => t.moves.some(m => equipmentEligible(m, userEquip)));
+  const pool = eligible.length ? eligible : CORE_TEMPLATES;
+  const id = lruPick(pool.map(t => t.id), state.contentLRU);
+  const tpl = pool.find(t => t.id === id) || pool[0];
+  const moves = tpl.moves.filter(m => equipmentEligible(m, userEquip));
+  return { ...tpl, moves: moves.length ? moves : tpl.moves };
+}
+
+function generateWod(state, focus, userEquip) {
+  const mult = state.volumeMultiplier[focus] || 1.0;
+  const formats = ['amrap', 'rft', 'ladder', 'fortime', 'emom'];
+  const bonus = { ladder: 3 };
+  const format = lruPick(formats, state.contentLRU, bonus);
+  markUsed(state, format);
+
+  if (format === 'ladder') {
+    const patId = lruPick(LADDER_PATTERNS.map(p => p.id), state.contentLRU, { ladder_12: 2 });
+    const pat = LADDER_PATTERNS.find(p => p.id === patId);
+    markUsed(state, patId);
+    const moves = pickWodMovements(state, focus, userEquip, 2);
+    moves.forEach(m => markUsed(state, m));
+    const capMin = 14 + Math.round((pat.steps.length - 3) * 1.5);
+    return {
+      format: 'ladder', label: 'Ladder', badge: `CAP ${capMin}:00`, capSec: capMin * 60,
+      steps: pat.steps, movements: moves.map(m => exerciseById(m).name).join(' + '),
+      moveIds: moves,
+    };
+  }
+  if (format === 'rft') {
+    const rounds = [3, 4, 5][Math.floor(Math.random() * 3)];
+    const moves = pickWodMovements(state, focus, userEquip, 2);
+    moves.forEach(m => markUsed(state, m));
+    const lines = moves.map(m => {
+      const base = WOD_MOVEMENT_BASE[m] || { amount: 10, unit: 'reps' };
+      const amt = scaledAmount(base.amount * 0.5, base.unit, mult);
+      return formatMovementLine(m, amt, base.unit);
+    });
+    return {
+      format: 'rft', label: 'RFT', badge: `${rounds} ROUNDS`, rounds,
+      movements: lines.join(' + '), moveIds: moves,
+    };
+  }
+  if (format === 'amrap') {
+    const capMin = [8, 10, 12, 14, 15, 20][Math.floor(Math.random() * 6)];
+    const moves = pickWodMovements(state, focus, userEquip, 3);
+    moves.forEach(m => markUsed(state, m));
+    const lines = moves.map(m => {
+      const base = WOD_MOVEMENT_BASE[m] || { amount: 10, unit: 'reps' };
+      const amt = scaledAmount(base.amount * 0.6, base.unit, mult);
+      return formatMovementLine(m, amt, base.unit);
+    });
+    return {
+      format: 'amrap', label: 'AMRAP', badge: `${capMin}:00 AMRAP`, capSec: capMin * 60,
+      movements: lines.join(' + '), moveIds: moves,
+    };
+  }
+  if (format === 'emom') {
+    const rounds = [8, 10, 12, 14][Math.floor(Math.random() * 4)];
+    const moves = pickWodMovements(state, focus, userEquip, 2);
+    moves.forEach(m => markUsed(state, m));
+    const rawLines = moves.map(m => {
+      const base = WOD_MOVEMENT_BASE[m] || { amount: 10, unit: 'reps' };
+      const amt = scaledAmount(base.amount * 0.5, base.unit, mult);
+      return formatMovementLine(m, amt, base.unit);
+    });
+    const lines = rawLines.map((l, i) => `${i === 0 ? 'Odd' : 'Even'} Min: ${l}`);
+    return {
+      format: 'emom', label: 'EMOM', badge: `EMOM ${rounds}`, rounds,
+      movements: lines.join(' · '), moveIds: moves,
+      oddLine: rawLines[0], evenLine: rawLines[1] || rawLines[0],
+    };
+  }
+  // fortime
+  const capMin = [10, 12, 15, 18][Math.floor(Math.random() * 4)];
+  const moves = pickWodMovements(state, focus, userEquip, 2);
+  moves.forEach(m => markUsed(state, m));
+  const lines = moves.map(m => {
+    const base = WOD_MOVEMENT_BASE[m] || { amount: 10, unit: 'reps' };
+    const amt = scaledAmount(base.amount * 0.8, base.unit, mult);
+    return formatMovementLine(m, amt, base.unit);
+  });
+  return {
+    format: 'fortime', label: 'For Time', badge: `CAP ${capMin}:00`, capSec: capMin * 60,
+    movements: lines.join(' + '), moveIds: moves,
+  };
+}
+
+function benchmarkReady(state) {
+  return (state.conditioningStreak || 0) >= 12;
+}
+
+function pickBenchmark(state) {
+  let best = BENCHMARKS[0], bestKey = (state.benchmarks[BENCHMARKS[0].id] || {}).lastTested || '0000-00-00';
+  for (const b of BENCHMARKS) {
+    const key = (state.benchmarks[b.id] || {}).lastTested || '0000-00-00';
+    if (key < bestKey) { best = b; bestKey = key; }
+  }
+  return best;
+}
+
+function generateToday(state) {
+  const date = todayISO();
+  if (state.today && state.today.date === date) return state.today;
+
+  const focus = pickFocus(state);
+  const equip = state.equipment;
+  const warmup = generateWarmup(state, equip);
+  const skill = generateSkill(state, focus, equip);
+  const wod = generateWod(state, focus, equip);
+  const core = generateCore(state, equip);
+
+  markUsed(state, warmup.templateId);
+  markUsed(state, skill.templateId);
+  markUsed(state, core.id);
+
+  const plan = {
+    date, focus, warmup, skill, wod, core,
+    completed: { warmup: false, skill: false, wod: false, core: false },
+    ratings: { warmup: null, skill: null, wod: null, core: null },
+    results: {},
+    benchmarkOffer: benchmarkReady(state) ? pickBenchmark(state).id : null,
+  };
+  state.today = plan;
+  Store.save();
+  return plan;
+}
+
+function completeSection(state, section, rating, resultData) {
+  const plan = state.today;
+  plan.completed[section] = true;
+  plan.ratings[section] = rating;
+  plan.results[section] = resultData || {};
+
+  if (section === 'skill' && plan.skill.shape === 'A' && resultData && resultData.weight != null) {
+    recordLiftResult(state, plan.skill.liftId, resultData.weight, resultData.reps || plan.skill.scheme[plan.skill.scheme.length - 1], rating);
+  }
+  if (section === 'wod') {
+    adjustVolume(state, plan.focus, rating, !!plan.isBenchmark);
+    state.conditioningStreak = plan.isBenchmark ? 0 : (state.conditioningStreak || 0) + 1;
+    if (plan.isBenchmark) {
+      if (!state.benchmarks[plan.benchmarkId]) state.benchmarks[plan.benchmarkId] = { results: [] };
+      state.benchmarks[plan.benchmarkId].lastTested = todayISO();
+      state.benchmarks[plan.benchmarkId].results.push({ date: todayISO(), result: resultData ? resultData.score : '' });
+    }
+  }
+
+  const allDone = ['warmup', 'skill', 'wod', 'core'].every(s => plan.completed[s]);
+  if (allDone) {
+    state.focusHistory[plan.focus] = todayISO();
+    state.sessionLog.push({
+      date: plan.date, focus: plan.focus, wodFormat: plan.wod.format,
+      wodBadge: plan.wod.isBenchmark ? plan.benchmarkName : plan.wod.badge,
+      wodMovements: plan.wod.movements, skillLift: plan.skill.liftName || plan.skill.templateId,
+      ratings: { ...plan.ratings }, results: { ...plan.results },
+    });
+    if (state.sessionLog.length > 200) state.sessionLog.shift();
+  }
+  Store.save();
+}
+
+function swapWodToBenchmark(state) {
+  const plan = state.today;
+  const b = pickBenchmark(state);
+  plan.wod = {
+    format: b.format, label: 'Benchmark', badge: b.name.toUpperCase(),
+    movements: b.line, moveIds: [], capSec: b.capSec || 1200,
+    steps: null,
+  };
+  plan.isBenchmark = true;
+  plan.benchmarkId = b.id;
+  plan.benchmarkName = b.name;
+  Store.save();
+  return plan;
+}
