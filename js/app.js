@@ -10,7 +10,7 @@ const ICON = {
   chev: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="6,3 11,8 6,13"/></svg>',
   weight: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="9" width="3" height="6" rx="1"/><rect x="4.5" y="7" width="2.5" height="10" rx="1"/><rect x="17" y="7" width="2.5" height="10" rx="1"/><rect x="19.5" y="9" width="3" height="6" rx="1"/><line x1="7" y1="12" x2="17" y2="12"/></svg>',
   history: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2"/><path d="M9 2h6"/></svg>',
-  gear: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 13.5a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V19.7a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H4.3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H10.5a1.7 1.7 0 0 0 1-1.55V4.3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V10.5a1.7 1.7 0 0 0 1.55 1H19.7a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.55 1z"/></svg>',
+  kettlebell: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 8.5a2.5 2.5 0 0 1 5 0V10h-5V8.5z"/><circle cx="12" cy="15.5" r="6"/></svg>',
   plus: '<svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="2" x2="8" y2="14"/><line x1="2" y1="8" x2="14" y2="8"/></svg>',
   trash: '<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><polyline points="2,4 14,4"/><path d="M5 4V2.5A1.5 1.5 0 0 1 6.5 1h3A1.5 1.5 0 0 1 11 2.5V4"/><path d="M4 4l.6 9a1.5 1.5 0 0 0 1.5 1.4h3.8a1.5 1.5 0 0 0 1.5-1.4L12 4"/></svg>',
 };
@@ -36,6 +36,7 @@ function render() {
   let html = '';
   if (UI.screen === 'onboarding') html = renderOnboarding();
   else if (UI.screen === 'today') html = renderShell(renderToday(), 'today');
+  else if (UI.screen === 'countdown') html = renderCountdownScreen();
   else if (UI.screen === 'exec') html = renderExecScreen();
   else if (UI.screen === 'rating') html = renderRating();
   else if (UI.screen === 'summary') html = renderSummary();
@@ -53,7 +54,7 @@ function renderShell(innerHtml, activeTab) {
 
 function renderBottomNav(active) {
   const item = (key, icon, label) => `<button class="nav-item ${active === key ? 'active' : ''}" onclick="App.goTab('${key}')">${icon}<span>${label}</span></button>`;
-  return `<div class="bottomnav">${item('today', ICON.weight, 'Today')}${item('log', ICON.history, 'Log')}${item('equipment', ICON.gear, 'Equipment')}</div>`;
+  return `<div class="bottomnav">${item('today', ICON.weight, 'Today')}${item('log', ICON.history, 'Log')}${item('equipment', ICON.kettlebell, 'Equipment')}</div>`;
 }
 
 function infoBtn(key) { return `<button class="info-btn" onclick="App.showInfo('${key}')">i</button>`; }
@@ -225,7 +226,7 @@ function sectionCardHtml(section, plan) {
   const done = plan.completed[section];
   const rating = plan.ratings[section];
   let title, meta;
-  if (section === 'warmup') { title = 'Warm-Up'; meta = `2 Rounds · ${plan.warmup.moves.map(m => exerciseById(m).name).join(', ')}`; }
+  if (section === 'warmup') { title = 'Warm-Up'; meta = `2 Rounds · ${warmupMoveList(plan.warmup)}`; }
   else if (section === 'skill') {
     title = 'Skill' + (plan.skill.liftName ? ' · ' + plan.skill.liftName : '');
     meta = skillMetaLine(plan.skill);
@@ -237,7 +238,7 @@ function sectionCardHtml(section, plan) {
   const icon = done ? ICON.check : ICON.play;
   const iconCls = done ? 'section-icon done' : 'section-icon';
   const right = done
-    ? `<span class="tag ${RATING_TAG_CLASS[rating]}">${RATING_LABEL[rating]}</span>`
+    ? (rating ? `<span class="tag ${RATING_TAG_CLASS[rating]}">${RATING_LABEL[rating]}</span>` : `<span class="tag tag-neutral">Done</span>`)
     : ICON.chev;
 
   return `<div class="section-card ${done ? 'disabled' : ''}" onclick="${done ? '' : `App.enterExec('${section}')`}">
@@ -250,15 +251,23 @@ function sectionCardHtml(section, plan) {
   </div>`;
 }
 
+function warmupMoveList(warmup) {
+  return warmup.moves.map(m => `${WARMUP_PRESCRIPTION[m] || ''} ${exerciseById(m).name}`.trim()).join(', ');
+}
+
 function skillMetaLine(skill) {
-  if (skill.shape === 'A') return `${skill.scheme.length} Sets · ${skill.scheme.join('-')}`;
-  if (skill.shape === 'B') return `EMOM ${skill.rounds}' · ${skill.oddName} / ${skill.evenName}`;
-  return `${skill.rounds} Rounds · ${skill.moveNames.join(', ')}`;
+  if (skill.shape === 'A') return `${skill.scheme.length} Sets · ${skill.scheme.join('-')} reps @ ${skill.weight} lb`;
+  if (skill.shape === 'B') {
+    const desc = skill.secHold ? `${skill.secHold}s Hold` : `${skill.reps} Reps`;
+    return `EMOM ${skill.rounds}' · Odd: ${desc} ${skill.oddName} · Even: ${desc} ${skill.evenName}`;
+  }
+  const lines = skill.moveNames.map((n, i) => `${skill.reps} ${n}${skill.weighted[i] ? ' @ ' + skill.weights[i] + ' lb' : ''}`);
+  return `${skill.rounds} Sets · ${lines.join(', ')}`;
 }
 function coreMetaLine(core) {
-  if (core.shape === 'tabata') return `Tabata · ${core.rounds} Rounds · ${core.moves.map(m => exerciseById(m).name).join(' / ')}`;
-  if (core.shape === 'holds') return `${core.rounds} Rounds · ${core.moves.map(m => exerciseById(m).name).join(' / ')} Hold`;
-  return `${core.rounds} Rounds · ${core.moves.map(m => exerciseById(m).name).join(', ')}`;
+  if (core.shape === 'tabata') return `Tabata ${core.workSec}"/${core.restSec}" · ${core.rounds} Rounds · ${core.moves.map(m => exerciseById(m).name).join(' / ')}`;
+  if (core.shape === 'holds') return `${core.rounds} Rounds · ${core.holdSec}s Hold / ${core.restSec}s Rest · ${core.moves.map(m => exerciseById(m).name).join(' / ')}`;
+  return `${core.rounds} Rounds · ${core.moves.map(m => `${core.reps} ${exerciseById(m).name}`).join(', ')}`;
 }
 
 // ─── Execution screens ───────────────────────────────────────────────────
@@ -274,6 +283,18 @@ function execHeader(title, infoKey) {
 function playPauseBtn(big) {
   const size = big ? 'width:64px;height:64px' : 'width:52px;height:52px';
   return `<button class="btn btn-primary btn-icon" style="${size}" onclick="App.toggleTimer()">${UI.running ? ICON.pause : ICON.play}</button>`;
+}
+
+function renderCountdownScreen() {
+  const section = UI.execSection;
+  return `<div class="screen no-nav">
+    ${execHeader(SECTION_TITLES[section].toUpperCase())}
+    <div class="exec-body" style="justify-content:center;align-items:center">
+      <div class="time-label">GET READY</div>
+      <div class="big-time" style="font-size:130px" id="countdownNum">${UI.timer ? Math.ceil(UI.timer.remainingMs() / 1000) : 10}</div>
+      <button class="btn btn-secondary btn-block" style="margin-top:auto" onclick="App.skipCountdown()">Skip</button>
+    </div>
+  </div>`;
 }
 
 function renderExecScreen() {
@@ -295,9 +316,10 @@ function renderWarmupBody(warmup) {
   const items = UI.warmupChecks.map((c, i) => {
     const moveId = warmup.moves[i % warmup.moves.length];
     const round = Math.floor(i / warmup.moves.length) + 1;
+    const rx = WARMUP_PRESCRIPTION[moveId] || '';
     return `<div class="check-item" onclick="App.toggleWarmupCheck(${i})">
       <div class="check-box ${c ? 'checked' : ''}">${c ? ICON.check : ''}</div>
-      <div class="check-label ${c ? 'checked' : ''}">${exerciseById(moveId).name}</div>
+      <div class="check-label ${c ? 'checked' : ''}">${rx} ${exerciseById(moveId).name}</div>
       <div class="check-round">R${round}</div>
     </div>`;
   }).join('');
@@ -505,10 +527,14 @@ function renderRating() {
 function renderSummary() {
   const plan = Store.state.today;
   const order = ['warmup', 'skill', 'wod', 'core'];
-  const rows = order.map(s => `<div class="card" style="flex-direction:row;justify-content:space-between;align-items:center;display:flex">
+  const rows = order.map(s => {
+    const rating = plan.ratings[s];
+    const tag = rating ? `<span class="tag ${RATING_TAG_CLASS[rating]}">${RATING_LABEL[rating]}</span>` : `<span class="tag tag-neutral">Done</span>`;
+    return `<div class="card" style="flex-direction:row;justify-content:space-between;align-items:center;display:flex">
     <div class="section-title" style="font-size:15px">${SECTION_TITLES[s]}</div>
-    <span class="tag ${RATING_TAG_CLASS[plan.ratings[s]]}">${RATING_LABEL[plan.ratings[s]]}</span>
-  </div>`).join('');
+    ${tag}
+  </div>`;
+  }).join('');
   return `<div class="screen no-nav">
     <div class="exec-body" style="padding-top:var(--space-8)">
       <h2>Workout Complete</h2>
@@ -653,6 +679,23 @@ const App = {
   },
 
   enterExec(section) {
+    UI.execSection = section; UI.screen = 'countdown';
+    if (UI.timer) { UI.timer.destroy(); UI.timer = null; }
+    UI.timer = new WTimer({
+      mode: 'down', durationMs: 10000,
+      onTick: () => { const e = byId('countdownNum'); if (e) e.textContent = Math.ceil(UI.timer.remainingMs() / 1000); },
+      onComplete: () => this.beginExecSection(section),
+    });
+    UI.timer.start();
+    render();
+  },
+
+  skipCountdown() {
+    if (UI.timer) { UI.timer.destroy(); UI.timer = null; }
+    this.beginExecSection(UI.execSection);
+  },
+
+  beginExecSection(section) {
     UI.execSection = section; UI.screen = 'exec';
     if (UI.timer) { UI.timer.destroy(); UI.timer = null; }
     const plan = Store.state.today;
@@ -728,8 +771,8 @@ const App = {
 
   toggleWarmupCheck(i) { UI.warmupChecks[i] = !UI.warmupChecks[i]; render(); },
   finishWarmup() {
-    UI.pendingResult = { checked: UI.warmupChecks.filter(Boolean).length, total: UI.warmupChecks.length };
-    this.goToRating('warmup');
+    const result = { checked: UI.warmupChecks.filter(Boolean).length, total: UI.warmupChecks.length };
+    this.finishSilent('warmup', result);
   },
 
   adjustWeight(dir) {
@@ -860,14 +903,25 @@ const App = {
   },
   toggleCoreCheck(i) { UI.coreChecks[i] = !UI.coreChecks[i]; render(); },
   finishCore() {
-    UI.pendingResult = {};
-    this.goToRating('core');
+    this.finishSilent('core', {});
   },
 
   goToRating(section) {
     if (UI.timer) { UI.timer.destroy(); UI.timer = null; }
     UI.execSection = section; UI.screen = 'rating';
     render();
+  },
+
+  // Warm-Up and Extra Core aren't rated (spec 2.6.1: rating drives progression
+  // for tracked lifts and WODs only) — mark done and move straight on.
+  finishSilent(section, resultData) {
+    if (UI.timer) { UI.timer.destroy(); UI.timer = null; }
+    completeSection(Store.state, section, null, resultData);
+    const plan = Store.state.today;
+    const order = ['warmup', 'skill', 'wod', 'core'];
+    const next = order.find(s => !plan.completed[s]);
+    if (next) this.enterExec(next);
+    else { UI.screen = 'summary'; render(); }
   },
 
   rate(value) {
@@ -881,3 +935,13 @@ const App = {
 };
 
 document.addEventListener('DOMContentLoaded', () => App.init());
+
+// iOS Safari sometimes reports a stale env(safe-area-inset-*) on first paint
+// in standalone PWA mode — the fixed bottom nav sits slightly high until the
+// next reflow. Nudging a 1px scroll forces that reflow invisibly.
+window.addEventListener('load', () => {
+  setTimeout(() => {
+    window.scrollTo(0, 1);
+    requestAnimationFrame(() => window.scrollTo(0, 0));
+  }, 60);
+});

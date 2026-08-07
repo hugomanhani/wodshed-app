@@ -231,6 +231,14 @@ const WARMUP_TEMPLATES = [
   { id: 'w6', moves: ['mtn_climber', 'glute_bridge', 'push_up', 'situp'] },
 ];
 
+// Prescription shown alongside each warm-up movement — reps, or a hold/duration string.
+const WARMUP_PRESCRIPTION = {
+  air_squat: '15', push_up: '10', mtn_climber: '20', jumping_jack: '20',
+  walking_lunge: '10/leg', plank_hold: '30 sec', high_knees: '20',
+  glute_bridge: '15', situp: '15', burpee: '8', russian_twist: '20',
+  superman_hold: '20 sec',
+};
+
 // ─── Skill templates — 3 shapes per spec 2.5 ────────────────────────────────
 // shape A: straight sets, load-tracked. shape B: EMOM. shape C: rest-interval superset.
 const SKILL_TEMPLATES = {
