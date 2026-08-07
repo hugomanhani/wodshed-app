@@ -24,8 +24,8 @@ const UI = {
   screen: 'boot', tab: 'today', execSection: null, timer: null, dialog: null, sheet: null,
   warmupChecks: [], skillSetIndex: 0, skillWeight: 0, skillWeightsC: [], skillResting: false, skillRoundIndex: 1,
   bRoundIndex: 1, wodElapsed: 0, wodStepIndex: 0, wodRftRound: 0, wodAmrapRounds: 0, wodAmrapReps: 0,
-  coreRound: 1, corePhase: 'work', coreChecks: [], pendingResult: null, running: false,
-  activityType: null, activityCustomType: '', activityDuration: 30, activityNotes: '',
+  coreRound: 1, coreIntervalIndex: 0, corePhase: 'work', coreChecks: [], pendingResult: null, running: false,
+  activityType: null, activityCustomType: '', activityDuration: 30, activityNotes: '', nextSection: null,
 };
 
 function app() { return document.getElementById('app'); }
@@ -40,6 +40,7 @@ function render() {
   else if (UI.screen === 'countdown') html = renderCountdownScreen();
   else if (UI.screen === 'exec') html = renderExecScreen();
   else if (UI.screen === 'rating') html = renderRating();
+  else if (UI.screen === 'nextPreview') html = renderNextPreviewScreen();
   else if (UI.screen === 'summary') html = renderSummary();
   else if (UI.screen === 'log') html = renderShell(renderLog(), 'log');
   else if (UI.screen === 'equipment') html = renderShell(renderEquipmentTab(), 'equipment');
@@ -596,13 +597,21 @@ function renderWodBody(wod, plan) {
 
 function renderCoreBody(core) {
   if (core.shape === 'tabata' || core.shape === 'holds') {
-    const moveName = exerciseById(core.moves[(UI.coreRound - 1) % core.moves.length]).name;
-    const phaseLabel = UI.corePhase === 'work' || UI.corePhase === 'hold' ? (core.shape === 'tabata' ? 'WORK' : 'HOLD') : 'REST';
+    const isHolds = core.shape === 'holds';
+    // Tabata alternates across a fixed TOTAL round count (the real Tabata
+    // protocol is always N rounds total). Holds instead does N rounds of
+    // EACH movement, so it tracks a separate running interval index.
+    const idx = isHolds ? UI.coreIntervalIndex : (UI.coreRound - 1);
+    const moveName = exerciseById(core.moves[idx % core.moves.length]).name;
+    const nextMoveName = exerciseById(core.moves[(idx + 1) % core.moves.length]).name;
+    const roundDisplay = isHolds ? Math.floor(UI.coreIntervalIndex / core.moves.length) + 1 : UI.coreRound;
+    const isRest = UI.corePhase === 'rest';
+    const phaseLabel = isRest ? 'REST' : (core.shape === 'tabata' ? 'WORK' : 'HOLD');
     return `<div class="exec-body" style="justify-content:center">
-      <span class="tag ${UI.corePhase === 'rest' ? 'tag-neutral' : 'tag-accent'}">${phaseLabel}</span>
-      <div class="exec-meta">${moveName}</div>
+      <span class="tag ${isRest ? 'tag-neutral' : 'tag-accent'}">${phaseLabel}</span>
+      <div class="exec-meta">${isRest ? 'Up Next: ' + nextMoveName : moveName}</div>
       <div class="big-time" style="font-size:88px" id="coreTime">${Math.ceil((UI.timer ? UI.timer.remainingMs() : 0) / 1000)}</div>
-      <div class="time-label">ROUND ${UI.coreRound} / ${core.rounds}</div>
+      <div class="time-label">ROUND ${roundDisplay} / ${core.rounds}</div>
       ${playPauseBtn(true)}
     </div>`;
   }
@@ -635,6 +644,28 @@ function renderRating() {
         <button class="btn btn-secondary btn-block" onclick="App.rate('easy')">Easy</button>
         <button class="btn btn-primary btn-block" onclick="App.rate('right')">Right</button>
         <button class="btn btn-secondary btn-block" onclick="App.rate('hard')">Hard</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderNextPreviewScreen() {
+  const plan = Store.state.today;
+  const section = UI.nextSection;
+  let title, meta;
+  if (section === 'warmup') { title = 'Warm-Up'; meta = metaBlock('2 Rounds', warmupMoveList(plan.warmup)); }
+  else if (section === 'skill') { title = 'Skill' + (plan.skill.liftName ? ' · ' + plan.skill.liftName : ''); meta = skillMetaBlock(plan.skill); }
+  else if (section === 'wod') { title = 'WOD · ' + (plan.isBenchmark ? plan.benchmarkName : plan.wod.label); meta = metaBlock(plan.wod.badge, plan.wod.lines || [plan.wod.movements]); }
+  else { title = 'Extra Core'; meta = coreMetaBlock(plan.core); }
+  return `<div class="screen no-nav">
+    <div class="exec-body" style="justify-content:center;padding-top:var(--space-6)">
+      <span class="tag tag-good">SECTION COMPLETE</span>
+      <div class="time-label" style="margin-top:var(--space-4)">UP NEXT</div>
+      <h2 style="text-align:center;margin:0">${title}</h2>
+      <div class="card" style="width:100%">${meta}</div>
+      <div style="width:100%;margin-top:auto;display:flex;flex-direction:column;gap:8px">
+        <button class="btn btn-primary btn-block" onclick="App.enterExec('${section}')">${ICON.play} Start</button>
+        <button class="btn btn-ghost btn-block" onclick="App.goToday()">Back to Today</button>
       </div>
     </div>
   </div>`;
@@ -927,7 +958,7 @@ const App = {
     UI.execSection = section; UI.screen = 'countdown';
     if (UI.timer) { UI.timer.destroy(); UI.timer = null; }
     UI.timer = new WTimer({
-      mode: 'down', durationMs: 10000,
+      mode: 'down', durationMs: 10000, completeSound: 'start',
       onTick: () => { const e = byId('countdownNum'); if (e) e.textContent = Math.ceil(UI.timer.remainingMs() / 1000); },
       onComplete: () => this.beginExecSection(section),
     });
@@ -956,7 +987,7 @@ const App = {
       } else if (s.shape === 'B') {
         UI.bRoundIndex = 1;
         UI.timer = new WTimer({
-          mode: 'down', durationMs: s.intervalSec * 1000,
+          mode: 'down', durationMs: s.intervalSec * 1000, completeSound: 'start',
           onTick: () => { const e = byId('bTime'); if (e) e.textContent = fmtClock(UI.timer.remainingMs()); },
           onComplete: () => this.advanceSkillB(),
         });
@@ -976,7 +1007,7 @@ const App = {
         });
       } else if (w.format === 'emom') {
         UI.timer = new WTimer({
-          mode: 'down', durationMs: 60 * 1000,
+          mode: 'down', durationMs: 60 * 1000, completeSound: 'start',
           onTick: () => { const e = byId('bTime'); if (e) e.textContent = fmtClock(UI.timer.remainingMs()); },
           onComplete: () => this.advanceWodEmom(),
         });
@@ -987,10 +1018,10 @@ const App = {
     } else if (section === 'core') {
       const c = plan.core;
       if (c.shape === 'tabata' || c.shape === 'holds') {
-        UI.coreRound = 1; UI.corePhase = c.shape === 'tabata' ? 'work' : 'hold';
+        UI.coreRound = 1; UI.coreIntervalIndex = 0; UI.corePhase = c.shape === 'tabata' ? 'work' : 'hold';
         const dur = (c.shape === 'tabata' ? c.workSec : c.holdSec) * 1000;
         UI.timer = new WTimer({
-          mode: 'down', durationMs: dur,
+          mode: 'down', durationMs: dur, completeSound: 'final',
           onTick: () => { const e = byId('coreTime'); if (e) e.textContent = Math.ceil(UI.timer.remainingMs() / 1000); },
           onComplete: () => this.advanceCorePhase(),
         });
@@ -1043,7 +1074,7 @@ const App = {
     UI.skillSetIndex += 1;
     UI.skillResting = true;
     UI.timer = new WTimer({
-      mode: 'down', durationMs: s.rest * 1000,
+      mode: 'down', durationMs: s.rest * 1000, completeSound: 'start',
       onTick: () => { const e = byId('restTime'); if (e) e.textContent = fmtClock(UI.timer.remainingMs()); },
       onComplete: () => { UI.skillResting = false; render(); },
     });
@@ -1088,7 +1119,7 @@ const App = {
     UI.skillRoundIndex += 1;
     UI.skillResting = true;
     UI.timer = new WTimer({
-      mode: 'down', durationMs: s.rest * 1000,
+      mode: 'down', durationMs: s.rest * 1000, completeSound: 'start',
       onTick: () => { const e = byId('restTime'); if (e) e.textContent = fmtClock(UI.timer.remainingMs()); },
       onComplete: () => { UI.skillResting = false; render(); },
     });
@@ -1145,27 +1176,38 @@ const App = {
   },
   wodSkipRound() { this.advanceWodEmom(); },
 
+  // Checks "was that the last interval" at the work/hold boundary, before
+  // ever entering rest — so there's never a trailing rest after the final
+  // round with nothing to lead into (which would leave "Up Next" showing a
+  // movement that isn't actually coming).
   advanceCorePhase() {
     const c = Store.state.today.core;
     if (c.shape === 'tabata') {
       if (UI.corePhase === 'work') {
-        UI.corePhase = 'rest';
-        UI.timer.reset(c.restSec * 1000); UI.timer.start();
-      } else if (UI.coreRound >= c.rounds) {
-        this.finishCore();
+        if (UI.coreRound >= c.rounds) {
+          this.finishCore();
+        } else {
+          UI.corePhase = 'rest';
+          UI.timer.reset(c.restSec * 1000); UI.timer.completeSound = 'start'; UI.timer.start();
+        }
       } else {
         UI.coreRound += 1; UI.corePhase = 'work';
-        UI.timer.reset(c.workSec * 1000); UI.timer.start();
+        UI.timer.reset(c.workSec * 1000); UI.timer.completeSound = 'final'; UI.timer.start();
       }
     } else {
+      // holds: c.rounds is rounds PER movement, so the finish line is
+      // rounds * moves.length total intervals, not just c.rounds.
+      const totalIntervals = c.rounds * c.moves.length;
       if (UI.corePhase === 'hold') {
-        UI.corePhase = 'rest';
-        UI.timer.reset(c.restSec * 1000); UI.timer.start();
-      } else if (UI.coreRound >= c.rounds) {
-        this.finishCore();
+        if (UI.coreIntervalIndex + 1 >= totalIntervals) {
+          this.finishCore();
+        } else {
+          UI.corePhase = 'rest';
+          UI.timer.reset(c.restSec * 1000); UI.timer.completeSound = 'start'; UI.timer.start();
+        }
       } else {
-        UI.coreRound += 1; UI.corePhase = 'hold';
-        UI.timer.reset(c.holdSec * 1000); UI.timer.start();
+        UI.coreIntervalIndex += 1; UI.corePhase = 'hold';
+        UI.timer.reset(c.holdSec * 1000); UI.timer.completeSound = 'final'; UI.timer.start();
       }
     }
     render();
@@ -1186,19 +1228,19 @@ const App = {
   finishSilent(section, resultData) {
     if (UI.timer) { UI.timer.destroy(); UI.timer = null; }
     completeSection(Store.state, section, null, resultData);
-    const plan = Store.state.today;
-    const order = ['warmup', 'skill', 'wod', 'core'];
-    const next = order.find(s => !plan.completed[s]);
-    if (next) this.enterExec(next);
-    else { UI.screen = 'summary'; render(); }
+    this.goToNextOrSummary();
   },
 
   rate(value) {
     completeSection(Store.state, UI.execSection, value, UI.pendingResult);
+    this.goToNextOrSummary();
+  },
+
+  goToNextOrSummary() {
     const plan = Store.state.today;
     const order = ['warmup', 'skill', 'wod', 'core'];
     const next = order.find(s => !plan.completed[s]);
-    if (next) this.enterExec(next);
+    if (next) { UI.screen = 'nextPreview'; UI.nextSection = next; render(); }
     else { UI.screen = 'summary'; render(); }
   },
 };

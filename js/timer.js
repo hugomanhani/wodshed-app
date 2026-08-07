@@ -10,37 +10,42 @@ function ensureAudioCtx() {
   return __wodAudioCtx;
 }
 
-function playTone(freq, durationMs, delayMs = 0) {
+function playTone(freq, durationMs, delayMs = 0, gain = 0.28) {
   const ctx = ensureAudioCtx();
   if (!ctx) return;
   try {
     const t0 = ctx.currentTime + delayMs / 1000;
     const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
+    const g = ctx.createGain();
     osc.type = 'sine';
     osc.frequency.value = freq;
-    gain.gain.setValueAtTime(0, t0);
-    gain.gain.linearRampToValueAtTime(0.28, t0 + 0.01);
-    gain.gain.linearRampToValueAtTime(0, t0 + durationMs / 1000);
-    osc.connect(gain);
-    gain.connect(ctx.destination);
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(gain, t0 + 0.01);
+    g.gain.linearRampToValueAtTime(0, t0 + durationMs / 1000);
+    osc.connect(g);
+    g.connect(ctx.destination);
     osc.start(t0);
     osc.stop(t0 + durationMs / 1000 + 0.02);
   } catch (e) { /* audio unavailable, fail silently */ }
 }
 
+// 'tick': the 3-2-1 countdown ticks on every timer. 'final': generic phase
+// end (e.g. work → rest) — light, not urgent. 'start': rest → work, the
+// actual "go" moment — louder, lower, and longer so it reads as distinct.
 function playBeep(kind) {
   if (kind === 'tick') playTone(880, 110);
   else if (kind === 'final') { playTone(1175, 160); playTone(1175, 160, 200); }
+  else if (kind === 'start') playTone(587, 320, 0, 0.5);
 }
 
 class WTimer {
-  constructor({ mode = 'up', durationMs = 0, onTick, onComplete, beep = true } = {}) {
+  constructor({ mode = 'up', durationMs = 0, onTick, onComplete, beep = true, completeSound = 'final' } = {}) {
     this.mode = mode;
     this.durationMs = durationMs;
     this.onTick = onTick;
     this.onComplete = onComplete;
     this.beep = beep;
+    this.completeSound = completeSound; // 'final' (phase ended) or 'start' (work begins now)
     this.accumulated = 0;
     this.runStartTs = null;
     this.running = false;
@@ -103,7 +108,7 @@ class WTimer {
     if (this.mode === 'down' && val <= 0 && !this._completed) {
       this._completed = true;
       this.pause();
-      if (this.beep) playBeep('final');
+      if (this.beep) playBeep(this.completeSound);
       if (this.onComplete) this.onComplete();
     }
   }
