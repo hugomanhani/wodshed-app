@@ -280,13 +280,13 @@ const CORE_TEMPLATES = [
 
 // ─── Benchmark WODs (fixed, never randomized) ───────────────────────────────
 const BENCHMARKS = [
-  { id: 'cindy', name: 'Cindy', format: 'amrap', capSec: 1200, line: '5 Pull-Ups, 10 Push-Ups, 15 Air Squats' },
-  { id: 'annie', name: 'Annie', format: 'fortime', line: '50-40-30-20-10 Double-Unders, 50-40-30-20-10 Sit-Ups' },
-  { id: 'fran', name: 'Fran', format: 'fortime', line: '21-15-9 Thrusters (95/65), 21-15-9 Pull-Ups' },
-  { id: 'isabel', name: 'Isabel', format: 'fortime', line: '30 Snatches (135/95)' },
-  { id: 'jackie', name: 'Jackie', format: 'fortime', line: '1000m Row, 50 Thrusters (45), 30 Pull-Ups' },
-  { id: 'chelsea', name: 'Chelsea', format: 'emom', capSec: 1800, line: '5 Pull-Ups, 10 Push-Ups, 15 Air Squats — every minute' },
-  { id: 'murph', name: 'Murph', format: 'fortime', line: '1 Mile Run, 100 Pull-Ups, 200 Push-Ups, 300 Squats, 1 Mile Run' },
+  { id: 'cindy', name: 'Cindy', format: 'amrap', capSec: 1200, line: '5 Pull-Ups, 10 Push-Ups, 15 Air Squats', equip: ['pullupbar'] },
+  { id: 'annie', name: 'Annie', format: 'fortime', line: '50-40-30-20-10 Double-Unders, 50-40-30-20-10 Sit-Ups', equip: ['jumprope'] },
+  { id: 'fran', name: 'Fran', format: 'fortime', line: '21-15-9 Thrusters (95/65), 21-15-9 Pull-Ups', equip: ['barbell', 'pullupbar'] },
+  { id: 'isabel', name: 'Isabel', format: 'fortime', line: '30 Snatches (135/95)', equip: ['barbell'] },
+  { id: 'jackie', name: 'Jackie', format: 'fortime', line: '1000m Row, 50 Thrusters (45), 30 Pull-Ups', equip: ['rower', 'barbell', 'pullupbar'] },
+  { id: 'chelsea', name: 'Chelsea', format: 'emom', capSec: 1800, line: '5 Pull-Ups, 10 Push-Ups, 15 Air Squats — every minute', equip: ['pullupbar'] },
+  { id: 'murph', name: 'Murph', format: 'fortime', line: '1 Mile Run, 100 Pull-Ups, 200 Push-Ups, 300 Squats, 1 Mile Run', equip: ['pullupbar'] },
 ];
 
 // ─── WOD movement pools per focus, tagged by equipment via EXERCISES ───────

@@ -149,12 +149,20 @@ function pickFocus(state) {
   return best;
 }
 
+// Shape B templates fill two independent slots (odd/even minute) from two
+// separate lists — each slot needs its OWN eligible option. Checking the
+// combined pool with .some() would pass a template where only one side is
+// actually satisfiable, and generateSkill's per-side fallback would then
+// silently serve an unowned-equipment movement on the other side.
 function templateEligible(tpl, userEquip) {
+  if (tpl.movesOdd || tpl.movesEven) {
+    const oddOk = !tpl.movesOdd || tpl.movesOdd.some(id => equipmentEligible(id, userEquip));
+    const evenOk = !tpl.movesEven || tpl.movesEven.some(id => equipmentEligible(id, userEquip));
+    return oddOk && evenOk;
+  }
   const ids = [];
   if (tpl.lifts) ids.push(...tpl.lifts);
   if (tpl.moves) ids.push(...tpl.moves);
-  if (tpl.movesOdd) ids.push(...tpl.movesOdd);
-  if (tpl.movesEven) ids.push(...tpl.movesEven);
   return ids.some(id => equipmentEligible(id, userEquip));
 }
 
@@ -268,11 +276,15 @@ function pickWodMovements(state, focus, userEquip, count) {
 }
 
 function generateWarmup(state, userEquip) {
-  const eligible = WARMUP_TEMPLATES.filter(t => t.moves.every(m => equipmentEligible(m, userEquip) || exerciseById(m).equip.length === 0));
+  const eligible = WARMUP_TEMPLATES.filter(t => t.moves.every(m => equipmentEligible(m, userEquip)));
   const pool = eligible.length ? eligible : WARMUP_TEMPLATES;
   const chosenId = lruPick(pool.map(t => t.id), state.contentLRU);
   const chosen = pool.find(t => t.id === chosenId) || pool[0];
-  return { templateId: chosen.id, moves: chosen.moves, rounds: 2 };
+  // Defensive: every warmup move is bodyweight today, so this substitution
+  // never actually triggers — but it means an ineligible move can never leak
+  // through even if that stops being true later.
+  const safeMoves = chosen.moves.map(m => equipmentEligible(m, userEquip) ? m : 'air_squat');
+  return { templateId: chosen.id, moves: safeMoves, rounds: 2 };
 }
 
 function generateSkill(state, focus, userEquip) {
@@ -297,8 +309,11 @@ function generateSkill(state, focus, userEquip) {
     };
   }
   if (tpl.shape === 'B') {
-    const odd = tpl.movesOdd.find(m => equipmentEligible(m, userEquip)) || tpl.movesOdd[0];
-    const even = tpl.movesEven.find(m => equipmentEligible(m, userEquip)) || tpl.movesEven[0];
+    // templateEligible already guarantees both sides have an eligible option
+    // whenever this runs — 'air_squat' (always available) is only a safety
+    // net, never a path that should actually execute.
+    const odd = tpl.movesOdd.find(m => equipmentEligible(m, userEquip)) || 'air_squat';
+    const even = tpl.movesEven.find(m => equipmentEligible(m, userEquip)) || 'air_squat';
     return {
       shape: 'B', templateId: tpl.id, intervalSec: tpl.intervalSec, rounds: tpl.rounds,
       odd, even, reps: tpl.reps, secHold: tpl.secHold,
@@ -340,7 +355,10 @@ function generateCore(state, userEquip) {
   const id = lruPick(pool.map(t => t.id), state.contentLRU);
   const tpl = pool.find(t => t.id === id) || pool[0];
   const moves = tpl.moves.filter(m => equipmentEligible(m, userEquip));
-  return { ...tpl, moves: moves.length ? moves : tpl.moves };
+  // Defensive: same reasoning as generateWarmup — 'tpl.moves' unfiltered
+  // would be unsafe if it ever happened, so fall back to guaranteed-bodyweight
+  // movements instead of the template's own (possibly ineligible) list.
+  return { ...tpl, moves: moves.length ? moves : ['situp', 'plank_hold'] };
 }
 
 function generateWod(state, focus, userEquip) {
@@ -423,13 +441,19 @@ function generateWod(state, focus, userEquip) {
   };
 }
 
-function benchmarkReady(state) {
-  return (state.conditioningStreak || 0) >= 12;
+// Only worth offering if the athlete can actually do at least one — every
+// benchmark needs some piece of gear (a pull-up bar at minimum), so a fully
+// bodyweight-only user should never see the "ready for a milestone" banner.
+function benchmarkReady(state, userEquip) {
+  if ((state.conditioningStreak || 0) < 12) return false;
+  return BENCHMARKS.some(b => hasEquip(userEquip, b.equip));
 }
 
-function pickBenchmark(state) {
-  let best = BENCHMARKS[0], bestKey = (state.benchmarks[BENCHMARKS[0].id] || {}).lastTested || '0000-00-00';
-  for (const b of BENCHMARKS) {
+function pickBenchmark(state, userEquip) {
+  const eligible = BENCHMARKS.filter(b => hasEquip(userEquip, b.equip));
+  const pool = eligible.length ? eligible : BENCHMARKS;
+  let best = pool[0], bestKey = (state.benchmarks[pool[0].id] || {}).lastTested || '0000-00-00';
+  for (const b of pool) {
     const key = (state.benchmarks[b.id] || {}).lastTested || '0000-00-00';
     if (key < bestKey) { best = b; bestKey = key; }
   }
@@ -452,7 +476,7 @@ function buildPlan(state, focus) {
     completed: { warmup: false, skill: false, wod: false, core: false },
     ratings: { warmup: null, skill: null, wod: null, core: null },
     results: {},
-    benchmarkOffer: benchmarkReady(state) ? pickBenchmark(state).id : null,
+    benchmarkOffer: benchmarkReady(state, equip) ? pickBenchmark(state, equip).id : null,
   };
 }
 
@@ -522,7 +546,7 @@ function completeSection(state, section, rating, resultData) {
 
 function swapWodToBenchmark(state) {
   const plan = state.today;
-  const b = pickBenchmark(state);
+  const b = pickBenchmark(state, getActiveEquipmentList(state));
   plan.wod = {
     format: b.format, label: 'Benchmark', badge: b.name.toUpperCase(),
     movements: b.line, lines: b.line.split(', '), moveIds: [], capSec: b.capSec || 1200,
