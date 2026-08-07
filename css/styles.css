@@ -118,7 +118,7 @@ button { font-family: var(--font); }
 .stepper-label { font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-neutral-500); }
 .stepper-controls { display: flex; align-items: center; gap: 6px; }
 .stepper-btn { width: 48px; height: 48px; border-radius: var(--radius-sm); background: var(--color-surface-2); border: none; color: var(--color-text); font-size: 24px; font-weight: 600; }
-.stepper-val { min-width: 60px; height: 48px; border-radius: var(--radius-sm); background: var(--color-surface); display: flex; align-items: center; justify-content: center; font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.stepper-val { min-width: 60px; height: 48px; border-radius: var(--radius-sm); background: var(--color-surface); display: flex; align-items: center; justify-content: center; font-size: 26px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--color-text); border: none; font-family: var(--font); }
 
 .move-list { width: 100%; display: flex; flex-direction: column; gap: var(--space-2); }
 .move-line { background: var(--color-surface); border-radius: var(--radius-sm); padding: var(--space-3); font-size: 14px; }

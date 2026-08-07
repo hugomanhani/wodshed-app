@@ -20,7 +20,7 @@ function newLocationId() {
 function blankLocation(name) {
   return {
     id: newLocationId(), name,
-    simple: [],
+    simple: ['canrun'], // running defaults to available — opt out, not opt in
     barbell: { has: false, barWeight: 45, plates: [] },
     kettlebells: { mode: 'fixed', weights: [] },
     dumbbells: { mode: 'fixed', weights: [] }, // weights: [{weight, unit: 'pair'|'single'}]
@@ -32,6 +32,9 @@ function blankLocation(name) {
 function locationFromFlatEquipment(name, flatEquip) {
   const loc = blankLocation(name);
   loc.simple = flatEquip.filter(id => ALL_SIMPLE_EQUIPMENT.includes(id));
+  // 'canrun' didn't exist before locations did — default it on so migrated
+  // saves keep behaving exactly like they did (run was always available).
+  if (!loc.simple.includes('canrun')) loc.simple.push('canrun');
   if (flatEquip.includes('barbell')) {
     loc.barbell = { has: true, barWeight: 45, plates: DEFAULT_PLATE_SET.map(p => ({ ...p })) };
   }

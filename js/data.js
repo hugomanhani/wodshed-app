@@ -9,6 +9,9 @@ const ACTIVITY_TYPES = [
 // tracks granular load info for them (bar weight + plate inventory, kettlebell
 // mode + owned weights, dumbbell owned weights). See storage.js blankLocation().
 const EQUIPMENT_GROUPS = [
+  { id: 'running_pref', label: 'Running', items: [
+    { id: 'canrun', label: 'Running is an option (outdoor or treadmill)' },
+  ]},
   { id: 'barbell_plates', label: 'Rack & Bench', items: [
     { id: 'rack', label: 'Squat Rack / Rig' },
     { id: 'bench', label: 'Weight Bench' },
@@ -197,7 +200,7 @@ const EXERCISES = [
   { id: 'shoot_through', name: 'Shoot-Through', modality: 'gymnastics', equip: ['rings'], focus: ['gymnastics'] },
 
   // Monostructural
-  { id: 'run', name: 'Run', modality: 'monostructural', equip: [], focus: ['conditioning'] },
+  { id: 'run', name: 'Run', modality: 'monostructural', equip: ['canrun'], focus: ['conditioning'] },
   { id: 'row_cal', name: 'Row (Calories)', modality: 'monostructural', equip: ['rower'], focus: ['conditioning'] },
   { id: 'row_m', name: 'Row (Meters)', modality: 'monostructural', equip: ['rower'], focus: ['conditioning'] },
   { id: 'bike_cal', name: 'Assault Bike (Calories)', modality: 'monostructural', equip: ['bike'], focus: ['conditioning'] },

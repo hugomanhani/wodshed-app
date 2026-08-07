@@ -234,7 +234,9 @@ function simpleGroupsHtml(loc) {
         <span>${it.label}</span><div class="switch ${on ? 'on' : ''}"></div>
       </div>`;
     }).join('');
-    return `<div class="equip-group"><div class="equip-group-label">${g.label}</div>${rows}</div>`;
+    const note = g.id === 'running_pref'
+      ? `<div class="section-sub" style="padding:0 0 var(--space-2)">Off if running isn't realistic for you (injury, no safe route, no treadmill) — WODs will use another conditioning movement instead.</div>` : '';
+    return `<div class="equip-group"><div class="equip-group-label">${g.label}</div>${note}${rows}</div>`;
   }).join('');
 }
 
@@ -502,14 +504,25 @@ function capTagHtml(elapsedMs, capSec) {
   return elapsedMs / 1000 >= capSec ? `<span class="tag tag-warn">TIME CAP</span>` : '';
 }
 
+// Ladder, RFT, and single-pass For Time are all the same scoring family per
+// spec 2.8 — completion speed is the point — so they share this "For Time"
+// naming in the UI even though they're tracked with different internals.
+function forTimeCardHtml(movementLine) {
+  return `<div class="card" style="width:100%;text-align:center">
+    <div style="font-size:11px;font-weight:700;letter-spacing:0.08em;text-transform:uppercase;color:var(--color-accent);margin-bottom:4px">For Time</div>
+    <div style="font-size:14px;color:var(--color-neutral-300)">${movementLine}</div>
+  </div>`;
+}
+
 function renderWodBody(wod, plan) {
   if (wod.format === 'ladder') {
     const step = wod.steps[UI.wodStepIndex];
     const isLast = UI.wodStepIndex + 1 >= wod.steps.length;
+    const movementLine = wod.lines.map(name => `${step} ${name}`).join(' + ');
     return `<div class="exec-body">
-      <div class="card" style="width:100%"><div style="font-size:13px;color:var(--color-neutral-400)">${wod.movements}</div></div>
-      <div class="exec-meta">ROUND ${UI.wodStepIndex + 1} / ${wod.steps.length} · ${wod.steps.join('–')}</div>
-      <div class="big-time">${step}</div>
+      ${forTimeCardHtml(movementLine)}
+      <div class="exec-meta">ROUND ${UI.wodStepIndex + 1} / ${wod.steps.length}</div>
+      <div class="big-time">${step}<span style="font-size:22px;color:var(--color-neutral-500)"> Reps</span></div>
       <div class="mid-time" id="wodTime" style="color:var(--color-neutral-400)">${fmtClock(UI.timer ? UI.timer.elapsedMs() : 0)}</div>
       ${capTagHtml(UI.timer ? UI.timer.elapsedMs() : 0, wod.capSec)}
       <div class="action-row">
@@ -521,7 +534,7 @@ function renderWodBody(wod, plan) {
   if (wod.format === 'rft') {
     const isLast = UI.wodRftRound + 1 >= wod.rounds;
     return `<div class="exec-body">
-      <div class="card" style="width:100%"><div style="font-size:13px;color:var(--color-neutral-400)">${wod.movements}</div></div>
+      ${forTimeCardHtml(wod.movements)}
       <div class="exec-meta">ROUND ${UI.wodRftRound + 1} / ${wod.rounds}</div>
       <div class="mid-time" id="wodTime">${fmtClock(UI.timer ? UI.timer.elapsedMs() : 0)}</div>
       ${capTagHtml(UI.timer ? UI.timer.elapsedMs() : 0, wod.capSec)}
@@ -533,7 +546,7 @@ function renderWodBody(wod, plan) {
   }
   if (wod.format === 'fortime') {
     return `<div class="exec-body">
-      <div class="card" style="width:100%"><div style="font-size:13px;color:var(--color-neutral-400)">${wod.movements}</div></div>
+      ${forTimeCardHtml(wod.movements)}
       <div class="mid-time" id="wodTime">${fmtClock(UI.timer ? UI.timer.elapsedMs() : 0)}</div>
       ${capTagHtml(UI.timer ? UI.timer.elapsedMs() : 0, wod.capSec)}
       <div class="action-row">
