@@ -5,7 +5,7 @@
   --color-surface: #1e202f;
   --color-surface-2: #232532;
   --color-text: #e9e9ed;
-  --color-accent: #9184d9;
+  --color-accent: #FF6B6B;
   --color-divider: color-mix(in srgb, #e9e9ed 14%, transparent);
 
   --color-neutral-100: #f3f5fe;
@@ -16,14 +16,14 @@
   --color-neutral-800: #3f424d;
   --color-neutral-900: #292b31;
 
-  --color-accent-100: #f5f4ff;
-  --color-accent-400: #b5abfc;
-  --color-accent-500: #968ae0;
-  --color-accent-800: #423a6a;
+  --color-accent-100: #fff0ef;
+  --color-accent-400: #ff9d9d;
+  --color-accent-500: #ff6b6b;
+  --color-accent-800: #4a2020;
 
   --color-good: #6fcf97;
   --color-warn: #e0a458;
-  --color-bad: #d97878;
+  --color-bad: #b0559e;
 
   --font: "Inter", system-ui, -apple-system, sans-serif;
 
@@ -44,7 +44,7 @@ h1, h2, h3, h4 { font-family: var(--font); font-weight: 600; line-height: 1.15; 
 p { margin: 0; }
 button { font-family: var(--font); }
 
-#app { max-width: 480px; margin: 0 auto; min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; position: relative; background: var(--color-bg); }
+#app { max-width: 480px; margin: 0 auto; min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; position: relative; background: var(--color-bg); padding-top: env(safe-area-inset-top); }
 
 .screen { flex: 1; display: flex; flex-direction: column; padding-bottom: calc(70px + env(safe-area-inset-bottom)); }
 .screen.no-nav { padding-bottom: env(safe-area-inset-bottom); }
@@ -160,8 +160,8 @@ button { font-family: var(--font); }
 .section-heading { padding: var(--space-6) var(--space-4) var(--space-2); font-size: 22px; }
 .section-sub { padding: 0 var(--space-4) var(--space-4); font-size: 13px; color: var(--color-neutral-500); }
 
-.onboard-wrap { display: flex; flex-direction: column; min-height: 100vh; min-height: 100dvh; }
+.onboard-wrap { display: flex; flex-direction: column; flex: 1; }
 .onboard-header { padding: var(--space-8) var(--space-4) var(--space-2); }
-.onboard-footer { padding: var(--space-4); position: sticky; bottom: 0; background: linear-gradient(to top, var(--color-bg) 60%, transparent); padding-top: var(--space-6); }
+.onboard-footer { padding: var(--space-4) var(--space-4) calc(var(--space-4) + env(safe-area-inset-bottom)); position: sticky; bottom: 0; background: linear-gradient(to top, var(--color-bg) 60%, transparent); padding-top: var(--space-6); }
 
 .hairline { height: 1px; background: var(--color-divider); margin: var(--space-2) 0; }
