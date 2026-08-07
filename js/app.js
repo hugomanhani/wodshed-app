@@ -13,6 +13,7 @@ const ICON = {
   kettlebell: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 8.5a2.5 2.5 0 0 1 5 0V10h-5V8.5z"/><circle cx="12" cy="15.5" r="6"/></svg>',
   plus: '<svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="2" x2="8" y2="14"/><line x1="2" y1="8" x2="14" y2="8"/></svg>',
   trash: '<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><polyline points="2,4 14,4"/><path d="M5 4V2.5A1.5 1.5 0 0 1 6.5 1h3A1.5 1.5 0 0 1 11 2.5V4"/><path d="M4 4l.6 9a1.5 1.5 0 0 0 1.5 1.4h3.8a1.5 1.5 0 0 0 1.5-1.4L12 4"/></svg>',
+  edit: '<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 2.5l3 3-7.5 7.5-3.8 1 1-3.8z"/><path d="M9.2 3.8l3 3"/></svg>',
 };
 
 const SECTION_TITLES = { warmup: 'Warm-Up', skill: 'Skill', wod: 'WOD', core: 'Extra Core' };
@@ -137,16 +138,10 @@ function locationHeaderHtml(loc) {
   return `<div style="display:flex;align-items:center;justify-content:space-between;padding:0 var(--space-4) var(--space-2)">
     <h3 style="margin:0">${loc.name}</h3>
     <div style="display:flex;gap:6px">
-      <button class="info-btn" style="width:28px;height:28px" onclick="App.renameLocation('${loc.id}')">✎</button>
+      <button class="info-btn" style="width:28px;height:28px" onclick="App.renameLocation('${loc.id}')">${ICON.edit}</button>
       ${Object.keys(Store.state.locations).length > 1 ? `<button class="info-btn" style="width:28px;height:28px" onclick="App.deleteLocation('${loc.id}')">${ICON.trash}</button>` : ''}
     </div>
   </div>`;
-}
-
-function presetQuickFillHtml() {
-  const chips = Object.keys(EQUIPMENT_PRESETS).map(key =>
-    `<div class="preset-chip" onclick="App.quickFillLocation('${key}')">${EQUIPMENT_PRESETS[key].label}</div>`).join('');
-  return `<div class="section-sub" style="padding-top:0">Quick-fill this location from a preset:</div><div class="preset-row" style="padding-top:0">${chips}</div>`;
 }
 
 function weightChipListHtml(weights, addFn, removeFn, commonList) {
@@ -156,15 +151,10 @@ function weightChipListHtml(weights, addFn, removeFn, commonList) {
   return `<div class="preset-row" style="padding:0 0 var(--space-2)">${owned}</div><div class="preset-row" style="padding:0">${addable}</div>`;
 }
 
-function barbellSectionHtml(loc) {
-  const b = loc.barbell;
-  const toggle = `<div class="equip-toggle" onclick="App.toggleBarbellHas()">
-    <span>Barbell</span><div class="switch ${b.has ? 'on' : ''}"></div>
-  </div>`;
-  if (!b.has) return `<div class="equip-group"><div class="equip-group-label">Barbell & Plates</div>${toggle}</div>`;
-
-  const plateRows = b.plates.map((p, i) => `<div class="equip-toggle">
-      <span>${p.weight} lb plates</span>
+function plateGroupHtml(loc, type, label, commonList) {
+  const rows = loc.barbell.plates.map((p, i) => ({ p, i })).filter(x => x.p.type === type);
+  const rowsHtml = rows.map(({ p, i }) => `<div class="equip-toggle">
+      <span>${p.weight} lb</span>
       <div class="stepper-controls">
         <button class="stepper-btn" style="width:32px;height:32px;font-size:16px" onclick="App.adjustPlateCount(${i},-2)">−</button>
         <div class="stepper-val" style="min-width:40px;height:32px;font-size:16px">${p.count}</div>
@@ -172,8 +162,17 @@ function barbellSectionHtml(loc) {
         <button class="info-btn" onclick="App.removePlate(${i})">✕</button>
       </div>
     </div>`).join('');
-  const addable = COMMON_PLATE_WEIGHTS.filter(w => !b.plates.some(p => p.weight === w)).map(w =>
-    `<div class="preset-chip" style="border-style:dashed" onclick="App.addPlate(${w})">+ ${w} lb pair</div>`).join('');
+  const addable = commonList.filter(w => !loc.barbell.plates.some(p => p.type === type && p.weight === w)).map(w =>
+    `<div class="preset-chip" style="border-style:dashed" onclick="App.addPlate(${w},'${type}')">+ ${w}</div>`).join('');
+  return `<div class="section-sub" style="padding:var(--space-2) 0 4px">${label}:</div>${rowsHtml}<div class="preset-row" style="padding:4px 0 0">${addable}</div>`;
+}
+
+function barbellSectionHtml(loc) {
+  const b = loc.barbell;
+  const toggle = `<div class="equip-toggle" onclick="App.toggleBarbellHas()">
+    <span>Barbell</span><div class="switch ${b.has ? 'on' : ''}"></div>
+  </div>`;
+  if (!b.has) return `<div class="equip-group"><div class="equip-group-label">Barbell & Plates</div>${toggle}</div>`;
 
   return `<div class="equip-group">
     <div class="equip-group-label">Barbell & Plates</div>
@@ -186,31 +185,44 @@ function barbellSectionHtml(loc) {
         <button class="stepper-btn" style="width:32px;height:32px;font-size:16px" onclick="App.adjustBarWeight(5)">+</button>
       </div>
     </div>
-    <div class="section-sub" style="padding:var(--space-2) 0">Plates owned (per pair — 2 per side loads once):</div>
-    ${plateRows}
-    <div class="preset-row" style="padding:var(--space-2) 0 0">${addable}</div>
+    ${plateGroupHtml(loc, 'bumper', 'Bumper plates owned (per pair)', COMMON_BUMPER_WEIGHTS)}
+    ${plateGroupHtml(loc, 'iron', 'Iron plates owned (per pair)', COMMON_IRON_WEIGHTS)}
     <div class="card" style="margin-top:var(--space-2)"><div class="section-meta">Max loadable: <strong style="color:var(--color-text)">${maxBarbellLoad(b)} lb</strong></div></div>
   </div>`;
 }
 
 function kettlebellSectionHtml(loc) {
   const kb = loc.kettlebells;
-  const modeChips = ['single', 'multiple'].map(m =>
-    `<div class="preset-chip ${kb.mode === m ? 'active' : ''}" onclick="App.setKbMode('${m}')">${m === 'single' ? 'Single Adjustable' : 'Multiple Fixed'}</div>`).join('');
+  const modeChips = ['adjustable', 'fixed'].map(m =>
+    `<div class="preset-chip ${kb.mode === m ? 'active' : ''}" onclick="App.setKbMode('${m}')">${m === 'adjustable' ? 'Single Adjustable' : 'Multiple Fixed'}</div>`).join('');
   return `<div class="equip-group">
     <div class="equip-group-label">Kettlebells</div>
     <div class="preset-row" style="padding:0 0 var(--space-2)">${modeChips}</div>
-    ${kb.mode === 'single' ? `<div class="section-sub" style="padding-top:0">One bell — weights it can be set to. Swapping mid-set isn't realistic, so the workout won't ask for two different loads back to back.</div>` : `<div class="section-sub" style="padding-top:0">Each fixed weight you own.</div>`}
+    ${kb.mode === 'adjustable' ? `<div class="section-sub" style="padding-top:0">One bell — weights it can be set to. Swapping mid-set isn't realistic, so the workout won't ask for two different loads back to back.</div>` : `<div class="section-sub" style="padding-top:0">Each fixed weight you own.</div>`}
     ${weightChipListHtml(kb.weights, 'App.addKbWeight', 'App.removeKbWeight', COMMON_KB_WEIGHTS)}
   </div>`;
 }
 
 function dumbbellSectionHtml(loc) {
   const db = loc.dumbbells;
+  const modeChips = ['adjustable', 'fixed'].map(m =>
+    `<div class="preset-chip ${db.mode === m ? 'active' : ''}" onclick="App.setDbMode('${m}')">${m === 'adjustable' ? 'Adjustable' : 'Multiple'}</div>`).join('');
+  const rows = db.weights.map((w, i) => `<div class="equip-toggle">
+      <span>${w.weight} lb</span>
+      <div class="stepper-controls">
+        <button class="preset-chip ${w.unit === 'single' ? 'active' : ''}" style="padding:6px 10px;font-size:12px" onclick="App.setDbUnit(${i},'single')">Single</button>
+        <button class="preset-chip ${w.unit === 'pair' ? 'active' : ''}" style="padding:6px 10px;font-size:12px" onclick="App.setDbUnit(${i},'pair')">Pair</button>
+        <button class="info-btn" onclick="App.removeDbWeight(${w.weight})">✕</button>
+      </div>
+    </div>`).join('');
+  const addable = COMMON_DB_WEIGHTS.filter(w => !db.weights.some(x => x.weight === w)).map(w =>
+    `<div class="preset-chip" style="border-style:dashed" onclick="App.addDbWeight(${w})">+ ${w}</div>`).join('');
   return `<div class="equip-group">
     <div class="equip-group-label">Dumbbells</div>
-    <div class="section-sub" style="padding-top:0">Each pair weight you own.</div>
-    ${weightChipListHtml(db.weights, 'App.addDbWeight', 'App.removeDbWeight', COMMON_DB_WEIGHTS)}
+    <div class="preset-row" style="padding:0 0 var(--space-2)">${modeChips}</div>
+    <div class="section-sub" style="padding-top:0">Mark each weight as a matched pair or a single unit — movements that need two hands only get prescribed if you own a pair.</div>
+    ${rows}
+    <div class="preset-row" style="padding:var(--space-2) 0 0">${addable}</div>
   </div>`;
 }
 
@@ -226,10 +238,8 @@ function simpleGroupsHtml(loc) {
   }).join('');
 }
 
-function locationEditorHtml(loc, opts) {
-  opts = opts || {};
-  return `${opts.showPresetFill ? presetQuickFillHtml() : ''}
-    ${barbellSectionHtml(loc)}
+function locationEditorHtml(loc) {
+  return `${barbellSectionHtml(loc)}
     ${kettlebellSectionHtml(loc)}
     ${dumbbellSectionHtml(loc)}
     ${simpleGroupsHtml(loc)}`;
@@ -240,9 +250,9 @@ function renderOnboarding() {
   return `<div class="onboard-wrap">
     <div class="onboard-header">
       <h1>Welcome to WODshed</h1>
-      <p class="section-sub" style="padding:0;margin-top:8px">Tell us what you've got. Start from a preset, then fine-tune plates and weights — you can add more locations (like a commercial gym) later.</p>
+      <p class="section-sub" style="padding:0;margin-top:8px">Tell us what you've got — toggle it on below. You can add more locations (like a commercial gym) later.</p>
     </div>
-    <div class="scroll-content">${locationEditorHtml(loc, { showPresetFill: true })}</div>
+    <div class="scroll-content">${locationEditorHtml(loc)}</div>
     <div class="onboard-footer">
       <button class="btn btn-primary btn-block" onclick="App.finishOnboarding()">Continue</button>
     </div>
@@ -255,7 +265,7 @@ function renderEquipmentTab() {
   <div class="section-sub">Switch locations for a garage day vs. a commercial-gym day — changes apply to your next generated day.</div>
   ${locationSwitcherHtml()}
   ${locationHeaderHtml(loc)}
-  ${locationEditorHtml(loc, { showPresetFill: true })}
+  ${locationEditorHtml(loc)}
   <div style="padding:var(--space-4)">
     <button class="btn btn-danger btn-block" onclick="App.confirmReset()">Reset All Data</button>
   </div>`;
@@ -311,14 +321,14 @@ function sectionCardHtml(section, plan) {
   const done = plan.completed[section];
   const rating = plan.ratings[section];
   let title, meta;
-  if (section === 'warmup') { title = 'Warm-Up'; meta = `2 Rounds · ${warmupMoveList(plan.warmup)}`; }
+  if (section === 'warmup') { title = 'Warm-Up'; meta = metaBlock('2 Rounds', warmupMoveList(plan.warmup)); }
   else if (section === 'skill') {
     title = 'Skill' + (plan.skill.liftName ? ' · ' + plan.skill.liftName : '');
-    meta = skillMetaLine(plan.skill);
+    meta = skillMetaBlock(plan.skill);
   } else if (section === 'wod') {
     title = 'WOD · ' + (plan.isBenchmark ? plan.benchmarkName : plan.wod.label);
-    meta = `${plan.wod.badge} · ${plan.wod.movements}`;
-  } else { title = 'Extra Core'; meta = coreMetaLine(plan.core); }
+    meta = metaBlock(plan.wod.badge, plan.wod.lines || [plan.wod.movements]);
+  } else { title = 'Extra Core'; meta = coreMetaBlock(plan.core); }
 
   const icon = done ? ICON.check : ICON.play;
   const iconCls = done ? 'section-icon done' : 'section-icon';
@@ -336,23 +346,27 @@ function sectionCardHtml(section, plan) {
   </div>`;
 }
 
-function warmupMoveList(warmup) {
-  return warmup.moves.map(m => `${WARMUP_PRESCRIPTION[m] || ''} ${exerciseById(m).name}`.trim()).join(', ');
+function metaBlock(header, lines) {
+  return `<div>${header}</div>${lines.map(l => `<div>${l}</div>`).join('')}`;
 }
 
-function skillMetaLine(skill) {
-  if (skill.shape === 'A') return `${skill.scheme.length} Sets · ${skill.scheme.join('-')} reps @ ${skill.weight} lb`;
+function warmupMoveList(warmup) {
+  return warmup.moves.map(m => `${WARMUP_PRESCRIPTION[m] || ''} ${exerciseById(m).name}`.trim());
+}
+
+function skillMetaBlock(skill) {
+  if (skill.shape === 'A') return metaBlock(`${skill.scheme.length} Sets · ${skill.scheme.join('-')} reps`, [`@ ${skill.weight} lb`]);
   if (skill.shape === 'B') {
     const desc = skill.secHold ? `${skill.secHold}s Hold` : `${skill.reps} Reps`;
-    return `EMOM ${skill.rounds}' · Odd: ${desc} ${skill.oddName} · Even: ${desc} ${skill.evenName}`;
+    return metaBlock(`EMOM ${skill.rounds}'`, [`Odd: ${desc} ${skill.oddName}`, `Even: ${desc} ${skill.evenName}`]);
   }
   const lines = skill.moveNames.map((n, i) => `${skill.reps} ${n}${skill.weighted[i] ? ' @ ' + skill.weights[i] + ' lb' : ''}`);
-  return `${skill.rounds} Sets · ${lines.join(', ')}`;
+  return metaBlock(`${skill.rounds} Sets`, lines);
 }
-function coreMetaLine(core) {
-  if (core.shape === 'tabata') return `Tabata ${core.workSec}"/${core.restSec}" · ${core.rounds} Rounds · ${core.moves.map(m => exerciseById(m).name).join(' / ')}`;
-  if (core.shape === 'holds') return `${core.rounds} Rounds · ${core.holdSec}s Hold / ${core.restSec}s Rest · ${core.moves.map(m => exerciseById(m).name).join(' / ')}`;
-  return `${core.rounds} Rounds · ${core.moves.map(m => `${core.reps} ${exerciseById(m).name}`).join(', ')}`;
+function coreMetaBlock(core) {
+  if (core.shape === 'tabata') return metaBlock(`Tabata ${core.workSec}"/${core.restSec}" · ${core.rounds} Rounds`, core.moves.map(m => exerciseById(m).name));
+  if (core.shape === 'holds') return metaBlock(`${core.rounds} Rounds · ${core.holdSec}s Hold / ${core.restSec}s Rest`, core.moves.map(m => exerciseById(m).name));
+  return metaBlock(`${core.rounds} Rounds`, core.moves.map(m => `${core.reps} ${exerciseById(m).name}`));
 }
 
 // ─── Execution screens ───────────────────────────────────────────────────
@@ -444,12 +458,14 @@ function renderSkillBody(skill) {
     const isOdd = UI.bRoundIndex % 2 === 1;
     const moveName = isOdd ? skill.oddName : skill.evenName;
     const desc = skill.secHold ? `${skill.secHold}s Hold` : `${skill.reps} Reps`;
+    const isLastRound = UI.bRoundIndex >= skill.rounds;
+    const nextName = (UI.bRoundIndex + 1) % 2 === 1 ? skill.oddName : skill.evenName;
     return `<div class="exec-body">
       <div class="time-label">MIN ${UI.bRoundIndex} / ${skill.rounds}</div>
       <div class="exec-meta">${isOdd ? 'ODD' : 'EVEN'}: ${desc} ${moveName}</div>
       <div class="big-time" id="bTime">${fmtClock(UI.timer ? UI.timer.remainingMs() : 0)}</div>
       ${playPauseBtn(true)}
-      <button class="btn btn-ghost" style="margin-top:auto" onclick="App.skillSkipRound()">Skip to Next Minute</button>
+      <button class="btn btn-ghost" style="margin-top:auto" onclick="App.skillSkipRound()">${isLastRound ? 'Finish Skill' : 'Skip to Next: ' + nextName}</button>
     </div>`;
   }
 
@@ -554,12 +570,14 @@ function renderWodBody(wod, plan) {
   const isOdd = UI.bRoundIndex % 2 === 1;
   const line = plan.isBenchmark ? wod.movements : (isOdd ? wod.oddLine : wod.evenLine);
   const isLastRound = UI.bRoundIndex >= wod.rounds;
+  const nextLine = plan.isBenchmark ? null : ((UI.bRoundIndex + 1) % 2 === 1 ? wod.oddLine : wod.evenLine);
+  const skipLabel = isLastRound ? 'Finish WOD' : (nextLine ? 'Skip to Next: ' + nextLine : 'Skip to Next Minute');
   return `<div class="exec-body">
     <div class="time-label">MIN ${UI.bRoundIndex} / ${wod.rounds}</div>
     <div class="exec-meta" style="text-align:center">${line}</div>
     <div class="big-time" id="bTime">${fmtClock(UI.timer ? UI.timer.remainingMs() : 0)}</div>
     ${playPauseBtn(true)}
-    <button class="btn btn-ghost" style="margin-top:auto" onclick="App.wodSkipRound()">${isLastRound ? 'Finish WOD' : 'Skip to Next Minute'}</button>
+    <button class="btn btn-ghost" style="margin-top:auto" onclick="App.wodSkipRound()">${skipLabel}</button>
   </div>`;
 }
 
@@ -747,7 +765,7 @@ const App = {
   createLocation() {
     const name = prompt('Name this location (e.g. "Commercial Gym"):', '');
     if (!name || !name.trim()) return;
-    const loc = defaultLocation(name.trim(), 'bodyweight');
+    const loc = blankLocation(name.trim());
     Store.state.locations[loc.id] = loc;
     Store.state.activeLocationId = loc.id;
     Store.save(); render();
@@ -772,13 +790,6 @@ const App = {
     Store.state.activeLocationId = id;
     Store.save(); render();
   },
-  quickFillLocation(presetKey) {
-    const loc = getActiveLocation(Store.state);
-    const filled = defaultLocation(loc.name, presetKey);
-    filled.id = loc.id;
-    Store.state.locations[loc.id] = filled;
-    Store.save(); render();
-  },
 
   // ─ Simple toggles ─
   toggleSimpleEquip(id) {
@@ -800,10 +811,10 @@ const App = {
     loc.barbell.barWeight = Math.min(55, Math.max(15, loc.barbell.barWeight + d));
     Store.save(); render();
   },
-  addPlate(weight) {
+  addPlate(weight, type) {
     const loc = getActiveLocation(Store.state);
-    if (loc.barbell.plates.some(p => p.weight === weight)) return;
-    loc.barbell.plates.push({ weight, count: 4 });
+    if (loc.barbell.plates.some(p => p.weight === weight && p.type === type)) return;
+    loc.barbell.plates.push({ weight, count: 4, type });
     loc.barbell.plates.sort((a, b) => b.weight - a.weight);
     Store.save(); render();
   },
@@ -836,14 +847,27 @@ const App = {
   },
 
   // ─ Dumbbells ─
+  setDbMode(mode) {
+    const loc = getActiveLocation(Store.state);
+    loc.dumbbells.mode = mode;
+    Store.save(); render();
+  },
   addDbWeight(w) {
     const loc = getActiveLocation(Store.state);
-    if (!loc.dumbbells.weights.includes(w)) { loc.dumbbells.weights.push(w); loc.dumbbells.weights.sort((a, b) => a - b); }
+    if (!loc.dumbbells.weights.some(x => x.weight === w)) {
+      loc.dumbbells.weights.push({ weight: w, unit: 'pair' });
+      loc.dumbbells.weights.sort((a, b) => a.weight - b.weight);
+    }
     Store.save(); render();
   },
   removeDbWeight(w) {
     const loc = getActiveLocation(Store.state);
-    loc.dumbbells.weights = loc.dumbbells.weights.filter(x => x !== w);
+    loc.dumbbells.weights = loc.dumbbells.weights.filter(x => x.weight !== w);
+    Store.save(); render();
+  },
+  setDbUnit(i, unit) {
+    const loc = getActiveLocation(Store.state);
+    loc.dumbbells.weights[i].unit = unit;
     Store.save(); render();
   },
 
@@ -877,7 +901,16 @@ const App = {
     if (next) this.enterExec(next);
   },
 
+  // Skill shapes A (straight sets) and C (superset) don't auto-start a timer
+  // on entry — the athlete paces sets manually — so a "get ready" countdown
+  // has nothing to lead into. Only warmup, skill shape B, WOD, and core do.
+  sectionIsTimed(section) {
+    if (section === 'skill') return Store.state.today.skill.shape === 'B';
+    return true;
+  },
+
   enterExec(section) {
+    if (!this.sectionIsTimed(section)) { this.beginExecSection(section); return; }
     UI.execSection = section; UI.screen = 'countdown';
     if (UI.timer) { UI.timer.destroy(); UI.timer = null; }
     UI.timer = new WTimer({
@@ -1016,8 +1049,10 @@ const App = {
     const step = dir > 0 ? 1 : -1;
     if (loc && ex.equip.includes('kettlebell')) {
       UI.skillWeightsC[i] = stepOwnedWeight(loc.kettlebells.weights, UI.skillWeightsC[i], step);
+    } else if (loc && ex.equip.includes('dumbbell_pair')) {
+      UI.skillWeightsC[i] = stepOwnedWeight(dbPairWeightNumbers(loc), UI.skillWeightsC[i], step);
     } else if (loc && ex.equip.includes('dumbbell')) {
-      UI.skillWeightsC[i] = stepOwnedWeight(loc.dumbbells.weights, UI.skillWeightsC[i], step);
+      UI.skillWeightsC[i] = stepOwnedWeight(dbWeightNumbers(loc), UI.skillWeightsC[i], step);
     } else if (loc && ex.equip.includes('barbell') && loc.barbell.has) {
       const inc = barbellIncrement(loc.barbell);
       const max = maxBarbellLoad(loc.barbell);

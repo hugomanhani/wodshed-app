@@ -7,7 +7,7 @@ const ACTIVITY_TYPES = [
 
 // Barbell, kettlebells, and dumbbells are NOT simple toggles — each location
 // tracks granular load info for them (bar weight + plate inventory, kettlebell
-// mode + owned weights, dumbbell owned weights). See storage.js defaultLocation().
+// mode + owned weights, dumbbell owned weights). See storage.js blankLocation().
 const EQUIPMENT_GROUPS = [
   { id: 'barbell_plates', label: 'Rack & Bench', items: [
     { id: 'rack', label: 'Squat Rack / Rig' },
@@ -50,24 +50,18 @@ const EQUIPMENT_GROUPS = [
 ];
 
 const ALL_SIMPLE_EQUIPMENT = EQUIPMENT_GROUPS.flatMap(g => g.items.map(i => i.id));
-const ALL_EQUIPMENT = ALL_SIMPLE_EQUIPMENT.concat(['barbell', 'kettlebell', 'dumbbell']);
 
+// Auto-filled the first time a location's barbell is switched on — a
+// reasonable default garage-gym plate set, easy to edit down from there.
 const DEFAULT_PLATE_SET = [
-  { weight: 45, count: 4 }, { weight: 25, count: 4 }, { weight: 10, count: 4 },
-  { weight: 5, count: 4 }, { weight: 2.5, count: 4 },
+  { weight: 45, count: 4, type: 'bumper' }, { weight: 25, count: 4, type: 'bumper' },
+  { weight: 15, count: 2, type: 'bumper' }, { weight: 10, count: 4, type: 'bumper' },
+  { weight: 5, count: 4, type: 'iron' }, { weight: 2.5, count: 4, type: 'iron' },
 ];
-const COMMON_PLATE_WEIGHTS = [55, 45, 35, 25, 15, 10, 5, 2.5];
+const COMMON_BUMPER_WEIGHTS = [10, 15, 25, 35, 45, 55];
+const COMMON_IRON_WEIGHTS = [1.25, 2.5, 5, 10, 15, 25, 35, 45, 100];
 const COMMON_KB_WEIGHTS = [18, 26, 35, 44, 53, 62, 70];
 const COMMON_DB_WEIGHTS = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 60];
-
-// Preset "items" lists are only used to quick-fill a new location — the real
-// per-location shape (barbell/kettlebells/dumbbells) is built by defaultLocation().
-const EQUIPMENT_PRESETS = {
-  bodyweight: { label: 'Bodyweight Only', desc: 'Nothing — travel, hotel rooms, anywhere', items: [] },
-  minimal: { label: 'Minimal Garage', desc: 'Barbell, kettlebell, pull-up bar, jump rope', items: ['barbell', 'kettlebell', 'pullupbar', 'jumprope'] },
-  garage: { label: 'Full Garage Gym', desc: 'Barbell, rack, kettlebells, dumbbells, rig, rings, jump rope, plyo box', items: ['barbell', 'rack', 'bench', 'kettlebell', 'dumbbell', 'pullupbar', 'rings', 'jumprope', 'plyobox', 'abmat'] },
-  fullbox: { label: 'Full Box / Commercial Gym', desc: 'Everything, including rower, bike, GHD, wall balls, climbing rope', items: ALL_EQUIPMENT.slice() },
-};
 
 const FOCUSES = ['strength', 'gymnastics', 'weightlifting', 'accessory', 'conditioning'];
 const FOCUS_LABELS = {
@@ -125,18 +119,18 @@ const EXERCISES = [
   { id: 'push_press', name: 'Push Press', modality: 'weightlifting', equip: ['barbell'], focus: ['accessory'], tracked: true, pattern: 'press' },
   { id: 'shoulder_press', name: 'Shoulder Press', modality: 'weightlifting', equip: ['barbell'], focus: ['accessory'], tracked: true, pattern: 'press' },
   { id: 'thruster_bb', name: 'Thruster', modality: 'weightlifting', equip: ['barbell'], focus: ['conditioning'] },
-  { id: 'thruster_db', name: 'DB Thruster', modality: 'weightlifting', equip: ['dumbbell'], focus: ['conditioning'] },
+  { id: 'thruster_db', name: 'DB Thruster', modality: 'weightlifting', equip: ['dumbbell_pair'], focus: ['conditioning'] },
   { id: 'sdhp', name: 'Sumo Deadlift High Pull', modality: 'weightlifting', equip: ['barbell'], focus: ['conditioning'] },
   { id: 'bench_press', name: 'Bench Press', modality: 'weightlifting', equip: ['barbell', 'bench'], focus: ['accessory'], tracked: true, pattern: 'press' },
   { id: 'snatch_balance', name: 'Snatch Balance', modality: 'weightlifting', equip: ['barbell'], focus: ['weightlifting'] },
   { id: 'sots_press', name: 'Sots Press', modality: 'weightlifting', equip: ['barbell'], focus: ['weightlifting'] },
   { id: 'db_clean', name: 'DB Clean', modality: 'weightlifting', equip: ['dumbbell'], focus: ['weightlifting'] },
   { id: 'db_snatch', name: 'DB Snatch', modality: 'weightlifting', equip: ['dumbbell'], focus: ['weightlifting', 'conditioning'] },
-  { id: 'db_deadlift', name: 'DB Deadlift', modality: 'weightlifting', equip: ['dumbbell'], focus: ['accessory'], pattern: 'hinge' },
-  { id: 'db_front_squat', name: 'DB Front Squat', modality: 'weightlifting', equip: ['dumbbell'], focus: ['accessory'], pattern: 'squat' },
-  { id: 'db_ohs', name: 'DB Overhead Squat', modality: 'weightlifting', equip: ['dumbbell'], focus: ['weightlifting'] },
-  { id: 'db_lunge', name: 'DB Front-Rack Lunge', modality: 'weightlifting', equip: ['dumbbell'], focus: ['accessory'] },
-  { id: 'db_oh_lunge', name: 'DB Overhead Walking Lunge', modality: 'weightlifting', equip: ['dumbbell'], focus: ['accessory'] },
+  { id: 'db_deadlift', name: 'DB Deadlift', modality: 'weightlifting', equip: ['dumbbell_pair'], focus: ['accessory'], pattern: 'hinge' },
+  { id: 'db_front_squat', name: 'DB Front Squat', modality: 'weightlifting', equip: ['dumbbell_pair'], focus: ['accessory'], pattern: 'squat' },
+  { id: 'db_ohs', name: 'DB Overhead Squat', modality: 'weightlifting', equip: ['dumbbell_pair'], focus: ['weightlifting'] },
+  { id: 'db_lunge', name: 'DB Front-Rack Lunge', modality: 'weightlifting', equip: ['dumbbell_pair'], focus: ['accessory'] },
+  { id: 'db_oh_lunge', name: 'DB Overhead Walking Lunge', modality: 'weightlifting', equip: ['dumbbell_pair'], focus: ['accessory'] },
   { id: 'db_tgu', name: 'DB Turkish Get-Up', modality: 'weightlifting', equip: ['dumbbell'], focus: ['accessory'] },
   { id: 'kb_swing', name: 'Kettlebell Swing', modality: 'weightlifting', equip: ['kettlebell'], focus: ['conditioning'] },
   { id: 'kb_snatch', name: 'Kettlebell Snatch', modality: 'weightlifting', equip: ['kettlebell'], focus: ['conditioning'] },

@@ -22,13 +22,13 @@ function blankLocation(name) {
     id: newLocationId(), name,
     simple: [],
     barbell: { has: false, barWeight: 45, plates: [] },
-    kettlebells: { mode: 'multiple', weights: [] },
-    dumbbells: { weights: [] },
+    kettlebells: { mode: 'fixed', weights: [] },
+    dumbbells: { mode: 'fixed', weights: [] }, // weights: [{weight, unit: 'pair'|'single'}]
   };
 }
 
-// Builds a location from a flat list of equipment ids (used for onboarding
-// preset quick-fill, and for migrating pre-locations installs).
+// Migrates a pre-locations flat equipment array (old state.equipment) into a
+// location with reasonable structured defaults.
 function locationFromFlatEquipment(name, flatEquip) {
   const loc = blankLocation(name);
   loc.simple = flatEquip.filter(id => ALL_SIMPLE_EQUIPMENT.includes(id));
@@ -36,17 +36,12 @@ function locationFromFlatEquipment(name, flatEquip) {
     loc.barbell = { has: true, barWeight: 45, plates: DEFAULT_PLATE_SET.map(p => ({ ...p })) };
   }
   if (flatEquip.includes('kettlebell')) {
-    loc.kettlebells = { mode: 'multiple', weights: [26, 35, 44] };
+    loc.kettlebells = { mode: 'fixed', weights: [26, 35, 44] };
   }
   if (flatEquip.includes('dumbbell')) {
-    loc.dumbbells = { weights: [20, 30, 40] };
+    loc.dumbbells = { mode: 'fixed', weights: [{ weight: 20, unit: 'pair' }, { weight: 30, unit: 'pair' }, { weight: 40, unit: 'pair' }] };
   }
   return loc;
-}
-
-function defaultLocation(name, presetKey) {
-  const preset = EQUIPMENT_PRESETS[presetKey];
-  return locationFromFlatEquipment(name, preset ? preset.items : []);
 }
 
 function defaultState() {

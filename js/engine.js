@@ -49,15 +49,27 @@ function getActiveLocation(state) {
 }
 
 // Flattens a location's structured gear into the plain id list the rest of
-// the engine's equipment-eligibility checks already understand.
+// the engine's equipment-eligibility checks already understand. 'dumbbell_pair'
+// is a synthetic id — only present if at least one owned DB weight is a
+// matched pair, so two-handed movements never get prescribed off a single.
 function getActiveEquipmentList(state) {
   const loc = getActiveLocation(state);
   if (!loc) return [];
   const list = loc.simple.slice();
   if (loc.barbell && loc.barbell.has) list.push('barbell');
   if (loc.kettlebells && loc.kettlebells.weights.length) list.push('kettlebell');
-  if (loc.dumbbells && loc.dumbbells.weights.length) list.push('dumbbell');
+  if (loc.dumbbells && loc.dumbbells.weights.length) {
+    list.push('dumbbell');
+    if (loc.dumbbells.weights.some(w => w.unit === 'pair')) list.push('dumbbell_pair');
+  }
   return list;
+}
+
+function dbWeightNumbers(loc) {
+  return loc && loc.dumbbells ? loc.dumbbells.weights.map(w => w.weight) : [];
+}
+function dbPairWeightNumbers(loc) {
+  return loc && loc.dumbbells ? loc.dumbbells.weights.filter(w => w.unit === 'pair').map(w => w.weight) : [];
 }
 
 function maxBarbellLoad(barbell) {
@@ -310,7 +322,14 @@ function accessoryWeightGuess(moveId, loc) {
   if (base == null) return 0;
   const ex = exerciseById(moveId);
   if (loc && ex.equip.includes('kettlebell') && loc.kettlebells.weights.length) return nearestOwnedWeight(loc.kettlebells.weights, base);
-  if (loc && ex.equip.includes('dumbbell') && loc.dumbbells.weights.length) return nearestOwnedWeight(loc.dumbbells.weights, base);
+  if (loc && ex.equip.includes('dumbbell_pair')) {
+    const pairs = dbPairWeightNumbers(loc);
+    if (pairs.length) return nearestOwnedWeight(pairs, base);
+  }
+  if (loc && ex.equip.includes('dumbbell')) {
+    const nums = dbWeightNumbers(loc);
+    if (nums.length) return nearestOwnedWeight(nums, base);
+  }
   if (loc && ex.equip.includes('barbell') && loc.barbell.has) return clampBarbellWeight(loc.barbell, base);
   return base;
 }
@@ -338,9 +357,10 @@ function generateWod(state, focus, userEquip) {
     const moves = pickWodMovements(state, focus, userEquip, 2);
     moves.forEach(m => markUsed(state, m));
     const capMin = 14 + Math.round((pat.steps.length - 3) * 1.5);
+    const moveNames = moves.map(m => exerciseById(m).name);
     return {
       format: 'ladder', label: 'Ladder', badge: `CAP ${capMin}:00`, capSec: capMin * 60,
-      steps: pat.steps, movements: moves.map(m => exerciseById(m).name).join(' + '),
+      steps: pat.steps, movements: moveNames.join(' + '), lines: moveNames,
       moveIds: moves,
     };
   }
@@ -355,7 +375,7 @@ function generateWod(state, focus, userEquip) {
     });
     return {
       format: 'rft', label: 'RFT', badge: `${rounds} ROUNDS`, rounds,
-      movements: lines.join(' + '), moveIds: moves,
+      movements: lines.join(' + '), lines, moveIds: moves,
     };
   }
   if (format === 'amrap') {
@@ -369,7 +389,7 @@ function generateWod(state, focus, userEquip) {
     });
     return {
       format: 'amrap', label: 'AMRAP', badge: `${capMin}:00 AMRAP`, capSec: capMin * 60,
-      movements: lines.join(' + '), moveIds: moves,
+      movements: lines.join(' + '), lines, moveIds: moves,
     };
   }
   if (format === 'emom') {
@@ -384,7 +404,7 @@ function generateWod(state, focus, userEquip) {
     const lines = rawLines.map((l, i) => `${i === 0 ? 'Odd' : 'Even'} Min: ${l}`);
     return {
       format: 'emom', label: 'EMOM', badge: `EMOM ${rounds}`, rounds,
-      movements: lines.join(' · '), moveIds: moves,
+      movements: lines.join(' · '), lines, moveIds: moves,
       oddLine: rawLines[0], evenLine: rawLines[1] || rawLines[0],
     };
   }
@@ -399,7 +419,7 @@ function generateWod(state, focus, userEquip) {
   });
   return {
     format: 'fortime', label: 'For Time', badge: `CAP ${capMin}:00`, capSec: capMin * 60,
-    movements: lines.join(' + '), moveIds: moves,
+    movements: lines.join(' + '), lines, moveIds: moves,
   };
 }
 
@@ -505,7 +525,7 @@ function swapWodToBenchmark(state) {
   const b = pickBenchmark(state);
   plan.wod = {
     format: b.format, label: 'Benchmark', badge: b.name.toUpperCase(),
-    movements: b.line, moveIds: [], capSec: b.capSec || 1200,
+    movements: b.line, lines: b.line.split(', '), moveIds: [], capSec: b.capSec || 1200,
     steps: null,
   };
   plan.isBenchmark = true;
