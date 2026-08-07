@@ -44,6 +44,60 @@ function hasEquip(userEquip, needed) {
   return needed.every(e => userEquip.includes(e));
 }
 
+function getActiveLocation(state) {
+  return state.locations[state.activeLocationId] || null;
+}
+
+// Flattens a location's structured gear into the plain id list the rest of
+// the engine's equipment-eligibility checks already understand.
+function getActiveEquipmentList(state) {
+  const loc = getActiveLocation(state);
+  if (!loc) return [];
+  const list = loc.simple.slice();
+  if (loc.barbell && loc.barbell.has) list.push('barbell');
+  if (loc.kettlebells && loc.kettlebells.weights.length) list.push('kettlebell');
+  if (loc.dumbbells && loc.dumbbells.weights.length) list.push('dumbbell');
+  return list;
+}
+
+function maxBarbellLoad(barbell) {
+  if (!barbell || !barbell.has) return 0;
+  const platesWeight = barbell.plates.reduce((sum, p) => sum + p.weight * 2 * Math.floor(p.count / 2), 0);
+  return barbell.barWeight + platesWeight;
+}
+
+function barbellIncrement(barbell) {
+  if (!barbell || !barbell.plates.length) return 5;
+  const smallest = barbell.plates.filter(p => p.count >= 2).reduce((min, p) => Math.min(min, p.weight), Infinity);
+  return isFinite(smallest) ? smallest * 2 : 5;
+}
+
+// Rounds a suggested barbell weight down to something actually loadable from
+// the owned plate inventory, never exceeding the max the plates allow.
+function clampBarbellWeight(barbell, suggestion) {
+  if (!barbell || !barbell.has) return suggestion;
+  const max = maxBarbellLoad(barbell);
+  const inc = barbellIncrement(barbell);
+  let target = Math.min(suggestion, max);
+  target = barbell.barWeight + Math.floor((target - barbell.barWeight) / inc) * inc;
+  return Math.max(barbell.barWeight, target);
+}
+
+// Snaps to the closest weight actually owned (kettlebells / dumbbells).
+function nearestOwnedWeight(weights, target) {
+  if (!weights || weights.length === 0) return target;
+  return weights.reduce((best, w) => Math.abs(w - target) < Math.abs(best - target) ? w : best, weights[0]);
+}
+
+// Steps to the next/previous weight actually owned, rather than a flat ± increment.
+function stepOwnedWeight(weights, current, dir) {
+  if (!weights || weights.length === 0) return Math.max(0, current + dir * 5);
+  const sorted = [...weights].sort((a, b) => a - b);
+  const nearestIdx = sorted.reduce((bi, w, i) => Math.abs(w - current) < Math.abs(sorted[bi] - current) ? i : bi, 0);
+  const nextIdx = Math.min(sorted.length - 1, Math.max(0, nearestIdx + dir));
+  return sorted[nextIdx];
+}
+
 function equipmentEligible(exId, userEquip) {
   const ex = exerciseById(exId);
   if (!ex) return false;
@@ -112,7 +166,9 @@ function suggestNextLoad(state, liftId) {
   const l = state.lifts[liftId];
   const inc = LIFT_INCREMENT[liftId] || 5;
   if (!l || l.history.length === 0) {
-    return DEFAULT_START_WEIGHT[liftId] || 45;
+    const startWeight = DEFAULT_START_WEIGHT[liftId] || 45;
+    const startLoc = getActiveLocation(state);
+    return (startLoc && startLoc.barbell && startLoc.barbell.has) ? clampBarbellWeight(startLoc.barbell, startWeight) : startWeight;
   }
   const hist = l.history;
   const lastEntry = hist[hist.length - 1];
@@ -152,7 +208,10 @@ function suggestNextLoad(state, liftId) {
   const layoff = daysSinceLastSession(state, liftId);
   if (layoff >= LAYOFF_DAYS) suggestion = Math.round((suggestion * 0.85) / 2.5) * 2.5;
 
-  return Math.max(inc, suggestion);
+  suggestion = Math.max(inc, suggestion);
+  const loc = getActiveLocation(state);
+  if (loc && loc.barbell && loc.barbell.has) suggestion = clampBarbellWeight(loc.barbell, suggestion);
+  return suggestion;
 }
 
 function recordLiftResult(state, liftId, weight, reps, rating) {
@@ -237,12 +296,23 @@ function generateSkill(state, focus, userEquip) {
   }
   const moves = tpl.moves.filter(m => equipmentEligible(m, userEquip));
   const finalMoves = moves.length ? moves : tpl.moves;
+  const loc = getActiveLocation(state);
   return {
     shape: 'C', templateId: tpl.id, moves: finalMoves, reps: tpl.reps, rest: tpl.rest, rounds: tpl.rounds || 4,
     moveNames: finalMoves.map(m => exerciseById(m) ? exerciseById(m).name : m),
     weighted: finalMoves.map(m => DEFAULT_ACCESSORY_WEIGHT[m] != null),
-    weights: finalMoves.map(m => DEFAULT_ACCESSORY_WEIGHT[m] || 0),
+    weights: finalMoves.map(m => accessoryWeightGuess(m, loc)),
   };
+}
+
+function accessoryWeightGuess(moveId, loc) {
+  const base = DEFAULT_ACCESSORY_WEIGHT[moveId];
+  if (base == null) return 0;
+  const ex = exerciseById(moveId);
+  if (loc && ex.equip.includes('kettlebell') && loc.kettlebells.weights.length) return nearestOwnedWeight(loc.kettlebells.weights, base);
+  if (loc && ex.equip.includes('dumbbell') && loc.dumbbells.weights.length) return nearestOwnedWeight(loc.dumbbells.weights, base);
+  if (loc && ex.equip.includes('barbell') && loc.barbell.has) return clampBarbellWeight(loc.barbell, base);
+  return base;
 }
 
 function generateCore(state, userEquip) {
@@ -347,7 +417,7 @@ function pickBenchmark(state) {
 }
 
 function buildPlan(state, focus) {
-  const equip = state.equipment;
+  const equip = getActiveEquipmentList(state);
   const warmup = generateWarmup(state, equip);
   const skill = generateSkill(state, focus, equip);
   const wod = generateWod(state, focus, equip);

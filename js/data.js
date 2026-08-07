@@ -5,17 +5,13 @@ const ACTIVITY_TYPES = [
   'Jiu-Jitsu', 'Run', 'Bike', 'Swim', 'Yoga', 'Hike', 'Climbing', 'Boxing', 'Soccer', 'Basketball', 'Other',
 ];
 
+// Barbell, kettlebells, and dumbbells are NOT simple toggles — each location
+// tracks granular load info for them (bar weight + plate inventory, kettlebell
+// mode + owned weights, dumbbell owned weights). See storage.js defaultLocation().
 const EQUIPMENT_GROUPS = [
-  { id: 'barbell_plates', label: 'Barbell & Plates', items: [
-    { id: 'barbell', label: 'Olympic Barbell + Plates' },
+  { id: 'barbell_plates', label: 'Rack & Bench', items: [
     { id: 'rack', label: 'Squat Rack / Rig' },
     { id: 'bench', label: 'Weight Bench' },
-  ]},
-  { id: 'kb', label: 'Kettlebells', items: [
-    { id: 'kettlebell', label: 'Kettlebell(s)' },
-  ]},
-  { id: 'db', label: 'Dumbbells', items: [
-    { id: 'dumbbell', label: 'Dumbbell(s)' },
   ]},
   { id: 'gymnastics', label: 'Pull-Up / Gymnastics', items: [
     { id: 'pullupbar', label: 'Pull-Up Bar' },
@@ -47,10 +43,25 @@ const EQUIPMENT_GROUPS = [
     { id: 'jumprope', label: 'Jump Rope' },
     { id: 'bands', label: 'Resistance Bands' },
   ]},
+  { id: 'mobility', label: 'Mobility & Recovery', items: [
+    { id: 'pvc', label: 'PVC Pipe' },
+    { id: 'yogamat', label: 'Yoga Mat' },
+  ]},
 ];
 
-const ALL_EQUIPMENT = EQUIPMENT_GROUPS.flatMap(g => g.items.map(i => i.id));
+const ALL_SIMPLE_EQUIPMENT = EQUIPMENT_GROUPS.flatMap(g => g.items.map(i => i.id));
+const ALL_EQUIPMENT = ALL_SIMPLE_EQUIPMENT.concat(['barbell', 'kettlebell', 'dumbbell']);
 
+const DEFAULT_PLATE_SET = [
+  { weight: 45, count: 4 }, { weight: 25, count: 4 }, { weight: 10, count: 4 },
+  { weight: 5, count: 4 }, { weight: 2.5, count: 4 },
+];
+const COMMON_PLATE_WEIGHTS = [55, 45, 35, 25, 15, 10, 5, 2.5];
+const COMMON_KB_WEIGHTS = [18, 26, 35, 44, 53, 62, 70];
+const COMMON_DB_WEIGHTS = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 60];
+
+// Preset "items" lists are only used to quick-fill a new location — the real
+// per-location shape (barbell/kettlebells/dumbbells) is built by defaultLocation().
 const EQUIPMENT_PRESETS = {
   bodyweight: { label: 'Bodyweight Only', desc: 'Nothing — travel, hotel rooms, anywhere', items: [] },
   minimal: { label: 'Minimal Garage', desc: 'Barbell, kettlebell, pull-up bar, jump rope', items: ['barbell', 'kettlebell', 'pullupbar', 'jumprope'] },

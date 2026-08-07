@@ -13,11 +13,49 @@ function daysBetween(iso1, iso2) {
   return Math.round((b - a) / 86400000);
 }
 
+function newLocationId() {
+  return 'loc_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
+}
+
+function blankLocation(name) {
+  return {
+    id: newLocationId(), name,
+    simple: [],
+    barbell: { has: false, barWeight: 45, plates: [] },
+    kettlebells: { mode: 'multiple', weights: [] },
+    dumbbells: { weights: [] },
+  };
+}
+
+// Builds a location from a flat list of equipment ids (used for onboarding
+// preset quick-fill, and for migrating pre-locations installs).
+function locationFromFlatEquipment(name, flatEquip) {
+  const loc = blankLocation(name);
+  loc.simple = flatEquip.filter(id => ALL_SIMPLE_EQUIPMENT.includes(id));
+  if (flatEquip.includes('barbell')) {
+    loc.barbell = { has: true, barWeight: 45, plates: DEFAULT_PLATE_SET.map(p => ({ ...p })) };
+  }
+  if (flatEquip.includes('kettlebell')) {
+    loc.kettlebells = { mode: 'multiple', weights: [26, 35, 44] };
+  }
+  if (flatEquip.includes('dumbbell')) {
+    loc.dumbbells = { weights: [20, 30, 40] };
+  }
+  return loc;
+}
+
+function defaultLocation(name, presetKey) {
+  const preset = EQUIPMENT_PRESETS[presetKey];
+  return locationFromFlatEquipment(name, preset ? preset.items : []);
+}
+
 function defaultState() {
   return {
-    version: 1,
+    version: 2,
     onboarded: false,
-    equipment: [],
+    equipment: [],          // legacy flat list, kept only so old saves can migrate
+    locations: {},           // locationId -> location (see blankLocation)
+    activeLocationId: null,
     focusHistory: {},      // focus -> lastTrainedISO
     contentLRU: {},        // templateId/exerciseId -> lastUsedISO
     lifts: {},              // exerciseId -> { history: [{date, weight, reps, rating}], startWeight }
@@ -32,14 +70,20 @@ function defaultState() {
 }
 
 function loadState() {
+  let state;
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return defaultState();
-    const parsed = JSON.parse(raw);
-    return Object.assign(defaultState(), parsed);
+    state = raw ? Object.assign(defaultState(), JSON.parse(raw)) : defaultState();
   } catch (e) {
-    return defaultState();
+    state = defaultState();
   }
+  if (!state.locations) state.locations = {};
+  if (Object.keys(state.locations).length === 0 && state.onboarded) {
+    const loc = locationFromFlatEquipment('My Gym', state.equipment || []);
+    state.locations = { [loc.id]: loc };
+    state.activeLocationId = loc.id;
+  }
+  return state;
 }
 
 function saveState(state) {
