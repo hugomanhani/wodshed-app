@@ -8,9 +8,11 @@ const ICON = {
   pause: '<svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor"><rect x="3" y="2" width="4" height="12"/><rect x="9" y="2" width="4" height="12"/></svg>',
   check: '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2.4"><polyline points="3,8 6,11 13,4"/></svg>',
   chev: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><polyline points="6,3 11,8 6,13"/></svg>',
-  home: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 11.5 12 4l8 7.5"/><path d="M6 10v9h12v-9"/></svg>',
+  weight: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="1.5" y="9" width="3" height="6" rx="1"/><rect x="4.5" y="7" width="2.5" height="10" rx="1"/><rect x="17" y="7" width="2.5" height="10" rx="1"/><rect x="19.5" y="9" width="3" height="6" rx="1"/><line x1="7" y1="12" x2="17" y2="12"/></svg>',
   history: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l3 2"/><path d="M9 2h6"/></svg>',
   gear: '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3.2"/><path d="M19.4 13.5a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1 1.55V19.7a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1-1.55 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.55-1H4.3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.55-1 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H10.5a1.7 1.7 0 0 0 1-1.55V4.3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1 1.55 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V10.5a1.7 1.7 0 0 0 1.55 1H19.7a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.55 1z"/></svg>',
+  plus: '<svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="2" x2="8" y2="14"/><line x1="2" y1="8" x2="14" y2="8"/></svg>',
+  trash: '<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><polyline points="2,4 14,4"/><path d="M5 4V2.5A1.5 1.5 0 0 1 6.5 1h3A1.5 1.5 0 0 1 11 2.5V4"/><path d="M4 4l.6 9a1.5 1.5 0 0 0 1.5 1.4h3.8a1.5 1.5 0 0 0 1.5-1.4L12 4"/></svg>',
 };
 
 const SECTION_TITLES = { warmup: 'Warm-Up', skill: 'Skill', wod: 'WOD', core: 'Extra Core' };
@@ -18,10 +20,11 @@ const RATING_LABEL = { easy: 'Easy', right: 'Right', hard: 'Hard' };
 const RATING_TAG_CLASS = { easy: 'tag-good', right: 'tag-neutral', hard: 'tag-warn' };
 
 const UI = {
-  screen: 'boot', tab: 'today', execSection: null, timer: null, dialog: null,
-  warmupChecks: [], skillSetIndex: 0, skillWeight: 0, skillResting: false, skillRoundIndex: 1,
+  screen: 'boot', tab: 'today', execSection: null, timer: null, dialog: null, sheet: null,
+  warmupChecks: [], skillSetIndex: 0, skillWeight: 0, skillWeightsC: [], skillResting: false, skillRoundIndex: 1,
   bRoundIndex: 1, wodElapsed: 0, wodStepIndex: 0, wodRftRound: 0, wodAmrapRounds: 0, wodAmrapReps: 0,
   coreRound: 1, corePhase: 'work', coreChecks: [], pendingResult: null, running: false,
+  activityType: null, activityCustomType: '', activityDuration: 30, activityNotes: '',
 };
 
 function app() { return document.getElementById('app'); }
@@ -36,10 +39,11 @@ function render() {
   else if (UI.screen === 'exec') html = renderExecScreen();
   else if (UI.screen === 'rating') html = renderRating();
   else if (UI.screen === 'summary') html = renderSummary();
-  else if (UI.screen === 'history') html = renderShell(renderHistory(), 'history');
+  else if (UI.screen === 'log') html = renderShell(renderLog(), 'log');
   else if (UI.screen === 'equipment') html = renderShell(renderEquipmentTab(), 'equipment');
 
   if (UI.dialog) html += renderDialog();
+  if (UI.sheet) html += renderSheet();
   root.innerHTML = html;
 }
 
@@ -49,7 +53,7 @@ function renderShell(innerHtml, activeTab) {
 
 function renderBottomNav(active) {
   const item = (key, icon, label) => `<button class="nav-item ${active === key ? 'active' : ''}" onclick="App.goTab('${key}')">${icon}<span>${label}</span></button>`;
-  return `<div class="bottomnav">${item('today', ICON.home, 'Today')}${item('history', ICON.history, 'History')}${item('equipment', ICON.gear, 'Equipment')}</div>`;
+  return `<div class="bottomnav">${item('today', ICON.weight, 'Today')}${item('log', ICON.history, 'Log')}${item('equipment', ICON.gear, 'Equipment')}</div>`;
 }
 
 function infoBtn(key) { return `<button class="info-btn" onclick="App.showInfo('${key}')">i</button>`; }
@@ -62,6 +66,60 @@ function renderDialog() {
       <div class="dialog-title">${title}</div>
       <div class="dialog-body">${g || ''}</div>
       <button class="btn btn-primary btn-block" onclick="App.closeDialog()">Got it</button>
+    </div>
+  </div>`;
+}
+
+function renderSheet() {
+  if (UI.sheet === 'focusPicker') return renderFocusPickerSheet();
+  if (UI.sheet === 'addActivity') return renderAddActivitySheet();
+  return '';
+}
+
+function renderFocusPickerSheet() {
+  const plan = Store.state.today;
+  const rows = FOCUSES.map(f => `<div class="equip-toggle" style="cursor:pointer" onclick="App.selectFocus('${f}')">
+      <div>
+        <div style="font-weight:600">${FOCUS_LABELS[f]}</div>
+        <div class="section-meta">${FOCUS_SUBTITLES[f]}</div>
+      </div>
+      ${plan.focus === f ? `<span class="tag tag-accent">CURRENT</span>` : ICON.chev}
+    </div>`).join('');
+  return `<div class="dialog-backdrop" onclick="App.closeSheet()">
+    <div class="dialog" onclick="event.stopPropagation()">
+      <div class="dialog-title">Change today's focus</div>
+      <div class="dialog-body">Picking a new focus regenerates today's whole plan. Anything you've already completed today will be cleared.</div>
+      <div style="display:flex;flex-direction:column;gap:6px">${rows}</div>
+    </div>
+  </div>`;
+}
+
+function renderAddActivitySheet() {
+  const type = UI.activityType || ACTIVITY_TYPES[0];
+  const chips = ACTIVITY_TYPES.map(t => `<div class="preset-chip ${type === t ? 'active' : ''}" onclick="App.setActivityType('${t}')">${t}</div>`).join('');
+  const customField = type === 'Other' ? `<div class="field">
+      <label>Activity name</label>
+      <input class="input" type="text" value="${UI.activityCustomType}" oninput="App.setActivityCustom(this.value)" placeholder="e.g. Rock climbing">
+    </div>` : '';
+  return `<div class="dialog-backdrop" onclick="App.closeSheet()">
+    <div class="dialog" onclick="event.stopPropagation()">
+      <div class="dialog-title">Log an outside activity</div>
+      <div class="preset-row" style="padding:0;margin:0 -4px">${chips}</div>
+      ${customField}
+      <div class="field">
+        <label>Duration (minutes)</label>
+        <div class="stepper-controls">
+          <button class="stepper-btn" onclick="App.adjustActivityDuration(-5)">−</button>
+          <div class="stepper-val" style="min-width:64px">${UI.activityDuration}</div>
+          <button class="stepper-btn" onclick="App.adjustActivityDuration(5)">+</button>
+        </div>
+      </div>
+      <div class="field">
+        <label>Notes (optional)</label>
+        <input class="input" type="text" value="${UI.activityNotes}" oninput="App.setActivityNotes(this.value)" placeholder="How'd it go?">
+      </div>
+      <button class="btn btn-primary btn-block" onclick="App.submitActivity()">Log Activity</button>
+      <button class="btn btn-ghost btn-block" onclick="App.closeSheet()">Cancel</button>
     </div>
   </div>`;
 }
@@ -149,7 +207,7 @@ function renderToday() {
         <div class="date-label">${dateStr}</div>
         <h1>Today</h1>
       </div>
-      <span class="tag tag-accent">${FOCUS_LABELS[plan.focus].toUpperCase()} FOCUS</span>
+      <button class="tag tag-accent" style="border:none;cursor:pointer" onclick="App.openFocusPicker()">${FOCUS_LABELS[plan.focus].toUpperCase()} FOCUS ▾</button>
     </div>
     <div class="progress-row">${segs}</div>
     <div style="padding:0 var(--space-4) var(--space-4)">
@@ -289,7 +347,19 @@ function renderSkillBody(skill) {
   }
 
   // shape C
-  const moves = skill.moveNames.map(n => `<div class="move-line">${skill.reps} ${n}</div>`).join('');
+  const moves = skill.moveNames.map((n, i) => {
+    if (skill.weighted[i]) {
+      return `<div class="move-line" style="display:flex;align-items:center;justify-content:space-between;gap:8px">
+        <div>${skill.reps} ${n}</div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <button class="stepper-btn" style="width:32px;height:32px" onclick="App.adjustWeightC(${i},-5)">−</button>
+          <div style="min-width:52px;text-align:center;font-variant-numeric:tabular-nums">${UI.skillWeightsC[i]} lb</div>
+          <button class="stepper-btn" style="width:32px;height:32px" onclick="App.adjustWeightC(${i},5)">+</button>
+        </div>
+      </div>`;
+    }
+    return `<div class="move-line">${skill.reps} ${n}</div>`;
+  }).join('');
   const rest = UI.skillResting ? `<div class="card" style="width:100%;align-items:center;gap:8px;display:flex;flex-direction:column">
       <div class="time-label">Rest</div>
       <div class="mid-time" id="restTime">${fmtClock(UI.timer ? UI.timer.remainingMs() : 0)}</div>
@@ -297,7 +367,7 @@ function renderSkillBody(skill) {
     </div>` : '';
   const isLast = UI.skillRoundIndex >= skill.rounds;
   return `<div class="exec-body">
-    <div class="section-meta">ROUND ${UI.skillRoundIndex} / ${skill.rounds}</div>
+    <div class="section-meta">ROUND (SET) ${UI.skillRoundIndex} / ${skill.rounds}</div>
     <div class="move-list">${moves}</div>
     ${rest}
     <button class="btn btn-primary btn-block" style="margin-top:auto" ${UI.skillResting ? 'disabled' : ''} onclick="App.completeSkillRound()">${isLast ? 'Finish Skill' : 'Complete Round'}</button>
@@ -448,26 +518,50 @@ function renderSummary() {
   </div>`;
 }
 
-// ─── History ─────────────────────────────────────────────────────────────
+// ─── Log ─────────────────────────────────────────────────────────────────
 
-function renderHistory() {
-  const log = Store.state.sessionLog.slice().reverse();
-  if (log.length === 0) {
-    return `<div class="empty-state"><h3>No sessions yet</h3><p>Finish your first workout and it'll show up here.</p></div>`;
+function renderLog() {
+  const workouts = Store.state.sessionLog.map(e => ({ kind: 'workout', date: e.date, data: e }));
+  const activities = Store.state.activityLog.map(e => ({ kind: 'activity', date: e.date, data: e }));
+  const combined = workouts.concat(activities).sort((a, b) => b.date < a.date ? -1 : b.date > a.date ? 1 : 0);
+
+  const header = `<div style="display:flex;align-items:center;justify-content:space-between;padding:var(--space-6) var(--space-4) var(--space-2)">
+    <h2 style="margin:0">Log</h2>
+    <button class="btn btn-secondary btn-icon" onclick="App.openAddActivity()">${ICON.plus}</button>
+  </div>`;
+
+  if (combined.length === 0) {
+    return `${header}<div class="empty-state"><h3>Nothing logged yet</h3><p>Finish a workout, or tap + to log an outside activity like a run or Jiu-Jitsu.</p></div>`;
   }
-  const items = log.map(entry => {
-    const chips = ['warmup', 'skill', 'wod', 'core'].map(s => entry.ratings[s]
-      ? `<span class="tag ${RATING_TAG_CLASS[entry.ratings[s]]}">${SECTION_TITLES[s]}: ${RATING_LABEL[entry.ratings[s]]}</span>` : '').join('');
-    return `<div class="card history-item">
-      <div class="history-top">
-        <div class="history-date">${entry.date}</div>
-        <span class="tag tag-accent">${FOCUS_LABELS[entry.focus].toUpperCase()}</span>
+
+  const items = combined.map(entry => entry.kind === 'workout' ? workoutCardHtml(entry.data) : activityCardHtml(entry.data)).join('');
+  return `${header}<div class="card-list" style="padding-bottom:24px">${items}</div>`;
+}
+
+function workoutCardHtml(entry) {
+  const chips = ['warmup', 'skill', 'wod', 'core'].map(s => entry.ratings[s]
+    ? `<span class="tag ${RATING_TAG_CLASS[entry.ratings[s]]}">${SECTION_TITLES[s]}: ${RATING_LABEL[entry.ratings[s]]}</span>` : '').join('');
+  return `<div class="card history-item">
+    <div class="history-top">
+      <div class="history-date">${entry.date}</div>
+      <span class="tag tag-accent">${FOCUS_LABELS[entry.focus].toUpperCase()}</span>
+    </div>
+    <div class="history-line">${entry.wodBadge} · ${entry.wodMovements}</div>
+    <div class="rating-chips">${chips}</div>
+  </div>`;
+}
+
+function activityCardHtml(entry) {
+  return `<div class="card history-item">
+    <div class="history-top">
+      <div class="history-date">${entry.date}</div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="tag tag-neutral">${entry.type.toUpperCase()}</span>
+        <button class="info-btn" style="width:22px;height:22px" onclick="App.removeActivity('${entry.id}')">${ICON.trash}</button>
       </div>
-      <div class="history-line">${entry.wodBadge} · ${entry.wodMovements}</div>
-      <div class="rating-chips">${chips}</div>
-    </div>`;
-  }).join('');
-  return `<div class="section-heading">History</div><div class="card-list" style="padding-bottom:24px">${items}</div>`;
+    </div>
+    <div class="history-line">${entry.duration ? entry.duration + ' min' : 'Outside activity'}${entry.notes ? ' · ' + entry.notes : ''}</div>
+  </div>`;
 }
 
 // ─── App controller ─────────────────────────────────────────────────────────
@@ -489,6 +583,34 @@ const App = {
 
   showInfo(key) { UI.dialog = key; render(); },
   closeDialog() { UI.dialog = null; render(); },
+  closeSheet() { UI.sheet = null; render(); },
+
+  openFocusPicker() { UI.sheet = 'focusPicker'; render(); },
+  selectFocus(focus) {
+    regenerateForFocus(Store.state, focus);
+    UI.sheet = null;
+    render();
+  },
+
+  openAddActivity() {
+    UI.activityType = ACTIVITY_TYPES[0]; UI.activityCustomType = '';
+    UI.activityDuration = 30; UI.activityNotes = '';
+    UI.sheet = 'addActivity'; render();
+  },
+  setActivityType(t) { UI.activityType = t; render(); },
+  setActivityCustom(v) { UI.activityCustomType = v; },
+  adjustActivityDuration(d) { UI.activityDuration = Math.max(5, UI.activityDuration + d); render(); },
+  setActivityNotes(v) { UI.activityNotes = v; },
+  submitActivity() {
+    const type = UI.activityType === 'Other' && UI.activityCustomType.trim() ? UI.activityCustomType.trim() : UI.activityType;
+    logActivity(Store.state, { type, duration: UI.activityDuration, notes: UI.activityNotes });
+    UI.sheet = null;
+    render();
+  },
+  removeActivity(id) {
+    deleteActivity(Store.state, id);
+    render();
+  },
 
   applyPreset(key) {
     Store.state.equipment = EQUIPMENT_PRESETS[key].items.slice();
@@ -553,6 +675,7 @@ const App = {
         UI.timer.start(); UI.running = true;
       } else {
         UI.skillRoundIndex = 1; UI.skillResting = false;
+        UI.skillWeightsC = s.weights.slice();
       }
     } else if (section === 'wod') {
       const w = plan.wod;
@@ -618,7 +741,7 @@ const App = {
   completeSet() {
     const s = Store.state.today.skill;
     if (UI.skillSetIndex + 1 >= s.scheme.length) {
-      UI.pendingResult = { weight: UI.skillWeight, reps: s.scheme[s.scheme.length - 1] };
+      UI.pendingResult = { weight: UI.skillWeight, reps: s.scheme[s.scheme.length - 1], sets: s.scheme.length };
       this.goToRating('skill');
       return;
     }
@@ -636,10 +759,17 @@ const App = {
     if (UI.timer) UI.timer.destroy();
     UI.skillResting = false; render();
   },
+  adjustWeightC(i, dir) {
+    UI.skillWeightsC[i] = Math.max(0, UI.skillWeightsC[i] + dir);
+    render();
+  },
   completeSkillRound() {
     const s = Store.state.today.skill;
     if (UI.skillRoundIndex >= s.rounds) {
-      UI.pendingResult = {};
+      UI.pendingResult = {
+        sets: s.rounds,
+        moves: s.moves.map((m, i) => ({ move: m, reps: s.reps, weight: s.weighted[i] ? UI.skillWeightsC[i] : null })),
+      };
       this.goToRating('skill');
       return;
     }

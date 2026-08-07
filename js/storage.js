@@ -24,6 +24,7 @@ function defaultState() {
     volumeMultiplier: { strength: 1.0, gymnastics: 1.0, weightlifting: 1.0, accessory: 1.0, conditioning: 1.0 },
     benchmarks: {},         // benchmarkId -> { lastTested: ISO, results: [{date, result}] }
     sessionLog: [],         // completed days
+    activityLog: [],        // outside activities logged manually (run, jiu-jitsu, bike, etc.)
     conditioningStreak: 0,  // sessions since last benchmark, for cadence suggestion
     today: null,            // cached generated plan for the current date
     lastPatternIndex: {},   // focus -> index into rotation pointer (deliberate sub-focus rotation)

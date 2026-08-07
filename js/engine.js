@@ -10,6 +10,10 @@ const LIFT_INCREMENT = {
   back_squat: 10, front_squat: 10, deadlift: 10, bench_press: 5,
   push_press: 5, shoulder_press: 5, power_clean: 5, power_snatch: 5,
 };
+const DEFAULT_ACCESSORY_WEIGHT = {
+  bench_press: 45, bent_row_db: 25, db_lunge: 20, push_press: 45,
+  kb_goblet_squat: 35, kb_swing: 35, db_snatch: 25, farmer_kb: 35, farmer_db: 25,
+};
 
 const BODYWEIGHT_FALLBACK = {
   strength: { id: 'fb_strength', shape: 'C', rest: 90, rounds: 4, moves: ['air_squat', 'push_up', 'pistol'], reps: 12 },
@@ -236,6 +240,8 @@ function generateSkill(state, focus, userEquip) {
   return {
     shape: 'C', templateId: tpl.id, moves: finalMoves, reps: tpl.reps, rest: tpl.rest, rounds: tpl.rounds || 4,
     moveNames: finalMoves.map(m => exerciseById(m) ? exerciseById(m).name : m),
+    weighted: finalMoves.map(m => DEFAULT_ACCESSORY_WEIGHT[m] != null),
+    weights: finalMoves.map(m => DEFAULT_ACCESSORY_WEIGHT[m] || 0),
   };
 }
 
@@ -340,11 +346,7 @@ function pickBenchmark(state) {
   return best;
 }
 
-function generateToday(state) {
-  const date = todayISO();
-  if (state.today && state.today.date === date) return state.today;
-
-  const focus = pickFocus(state);
+function buildPlan(state, focus) {
   const equip = state.equipment;
   const warmup = generateWarmup(state, equip);
   const skill = generateSkill(state, focus, equip);
@@ -355,16 +357,44 @@ function generateToday(state) {
   markUsed(state, skill.templateId);
   markUsed(state, core.id);
 
-  const plan = {
-    date, focus, warmup, skill, wod, core,
+  return {
+    date: todayISO(), focus, warmup, skill, wod, core,
     completed: { warmup: false, skill: false, wod: false, core: false },
     ratings: { warmup: null, skill: null, wod: null, core: null },
     results: {},
     benchmarkOffer: benchmarkReady(state) ? pickBenchmark(state).id : null,
   };
+}
+
+function generateToday(state) {
+  const date = todayISO();
+  if (state.today && state.today.date === date) return state.today;
+  const focus = pickFocus(state);
+  const plan = buildPlan(state, focus);
   state.today = plan;
   Store.save();
   return plan;
+}
+
+function regenerateForFocus(state, focus) {
+  const plan = buildPlan(state, focus);
+  state.today = plan;
+  Store.save();
+  return plan;
+}
+
+function logActivity(state, entry) {
+  state.activityLog.push({
+    id: 'act_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
+    date: todayISO(), type: entry.type, duration: entry.duration || null, notes: entry.notes || '',
+  });
+  if (state.activityLog.length > 300) state.activityLog.shift();
+  Store.save();
+}
+
+function deleteActivity(state, id) {
+  state.activityLog = state.activityLog.filter(a => a.id !== id);
+  Store.save();
 }
 
 function completeSection(state, section, rating, resultData) {

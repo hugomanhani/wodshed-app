@@ -1,6 +1,10 @@
 // WODshed data layer — equipment, exercise library, templates, benchmarks, glossary.
 // Every exercise's `equip` array lists ALL equipment ids required; [] = always available (bodyweight).
 
+const ACTIVITY_TYPES = [
+  'Jiu-Jitsu', 'Run', 'Bike', 'Swim', 'Yoga', 'Hike', 'Climbing', 'Boxing', 'Soccer', 'Basketball', 'Other',
+];
+
 const EQUIPMENT_GROUPS = [
   { id: 'barbell_plates', label: 'Barbell & Plates', items: [
     { id: 'barbell', label: 'Olympic Barbell + Plates' },
