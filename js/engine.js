@@ -62,6 +62,9 @@ function getActiveEquipmentList(state) {
     list.push('dumbbell');
     if (loc.dumbbells.weights.some(w => w.unit === 'pair')) list.push('dumbbell_pair');
   }
+  // 'canrun' (what the Run exercise actually checks) is available if either
+  // outdoor running is realistic OR a treadmill is owned — either one covers it.
+  if (list.includes('run_outdoor') || list.includes('treadmill')) list.push('canrun');
   return list;
 }
 

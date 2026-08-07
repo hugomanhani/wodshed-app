@@ -10,7 +10,7 @@ const ACTIVITY_TYPES = [
 // mode + owned weights, dumbbell owned weights). See storage.js blankLocation().
 const EQUIPMENT_GROUPS = [
   { id: 'running_pref', label: 'Running', items: [
-    { id: 'canrun', label: 'Running is an option (outdoor or treadmill)' },
+    { id: 'run_outdoor', label: 'Running outdoors is an option?' },
   ]},
   { id: 'barbell_plates', label: 'Rack & Bench', items: [
     { id: 'rack', label: 'Squat Rack / Rig' },

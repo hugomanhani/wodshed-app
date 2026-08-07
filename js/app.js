@@ -235,7 +235,7 @@ function simpleGroupsHtml(loc) {
       </div>`;
     }).join('');
     const note = g.id === 'running_pref'
-      ? `<div class="section-sub" style="padding:0 0 var(--space-2)">Off if running isn't realistic for you (injury, no safe route, no treadmill) — WODs will use another conditioning movement instead.</div>` : '';
+      ? `<div class="section-sub" style="padding:0 0 var(--space-2)">Off if outdoor running isn't realistic for you (injury, no safe route, weather). If you own a treadmill (toggle it on below) Run still shows up — this is just about outdoors. With both off, WODs use another conditioning movement instead.</div>` : '';
     return `<div class="equip-group"><div class="equip-group-label">${g.label}</div>${note}${rows}</div>`;
   }).join('');
 }
